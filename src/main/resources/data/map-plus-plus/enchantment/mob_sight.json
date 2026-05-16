@@ -1,0 +1,20 @@
+{
+  "description": {
+    "translate": "enchantment.map-plus-plus.mob_sight"
+  },
+  "supported_items": "#map-plus-plus:enchantable/mob_sight",
+  "primary_items": "#map-plus-plus:enchantable/mob_sight",
+  "weight": 5,
+  "max_level": 1,
+  "anvil_cost": 2,
+  "min_cost": {
+    "base": 1,
+    "per_level_above_first": 1
+  },
+  "max_cost": {
+    "base": 21,
+    "per_level_above_first": 10
+  },
+  "slots": ["any"],
+  "effects": {}
+}

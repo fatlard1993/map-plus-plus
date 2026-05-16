@@ -1,0 +1,19 @@
+{
+	"required": true,
+	"package": "justfatlard.map_plus_plus.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"PlayerMixin",
+		"PlayerIsHoldingMixin",
+		"ServerPlayerSaveMixin",
+		"InventoryMenuMixin"
+	],
+	"client": [
+		"client.AbstractContainerScreenAccessor",
+		"client.InventoryScreenMixin",
+		"client.MapSlotClickMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
