@@ -4,14 +4,7 @@
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
 		"PlayerMixin",
-		"PlayerIsHoldingMixin",
-		"ServerPlayerSaveMixin",
-		"InventoryMenuMixin"
-	],
-	"client": [
-		"client.AbstractContainerScreenAccessor",
-		"client.InventoryScreenMixin",
-		"client.MapSlotClickMixin"
+		"PlayerIsHoldingMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

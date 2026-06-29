@@ -12,8 +12,7 @@
 	"license": "MIT",
 	"environment": "*",
 	"entrypoints": {
-		"main": ["justfatlard.map_plus_plus.Main"],
-		"client": ["justfatlard.map_plus_plus.MapPlusPlusClient"]
+		"main": ["justfatlard.map_plus_plus.Main"]
 	},
 	"mixins": ["map-plus-plus.mixins.json"],
 	"depends": {

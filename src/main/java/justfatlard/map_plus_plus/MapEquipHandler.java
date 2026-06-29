@@ -81,6 +81,7 @@ public class MapEquipHandler {
 				}
 				continue;
 			}
+			LOGGER.info("[map++] tick: player={} mapStack={} hasMapId={}", player.getName().getString(), mapStack, mapStack.get(net.minecraft.core.component.DataComponents.MAP_ID) != null);
 
 			MapId mapId = mapStack.get(DataComponents.MAP_ID);
 			if (mapId == null) {
