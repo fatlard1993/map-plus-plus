@@ -1,5 +1,5 @@
 plugins {
-	id 'net.fabricmc.fabric-loom' version '1.17.12'
+	id 'net.fabricmc.fabric-loom' version '1.17.17'
 }
 
 version = project.mod_version
@@ -20,7 +20,7 @@ dependencies {
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-	implementation files("../pandorical/build/libs/pandorical-1.0.0.jar")
+	implementation(project(':pandorical'))
 }
 
 processResources {

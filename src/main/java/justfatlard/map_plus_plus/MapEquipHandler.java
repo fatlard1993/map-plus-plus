@@ -309,7 +309,7 @@ public class MapEquipHandler {
 		m.put("compass_tz",   formatCoord(compassTz));
 		m.put("self_dec_x",   String.valueOf(selfDecX));
 		m.put("self_dec_y",   String.valueOf(selfDecY));
-		// Stable map-coord bytes for the X marker — avoids drift when player is clamped at edge
+		// Stable map-coord bytes for the X marker: avoids drift when player is clamped at edge
 		m.put("compass_dec_x", String.valueOf(compassDecX));
 		m.put("compass_dec_y", String.valueOf(compassDecY));
 		return m;
@@ -337,10 +337,10 @@ public class MapEquipHandler {
 
 	/** Returns ARGB color for a mob dot based on its type. */
 	private static int mobColor(LivingEntity entity) {
-		if (entity instanceof Villager) return 0xFF3399FF; // blue — villager
-		if (entity instanceof Enemy)   return 0xFFFF3333; // red  — hostile
-		if (entity instanceof Animal)  return 0xFF33FF33; // green — passive
-		return 0xFFFFAA00;                                 // orange — other
+		if (entity instanceof Villager) return 0xFF3399FF; // blue: villager
+		if (entity instanceof Enemy)   return 0xFFFF3333; // red: hostile
+		if (entity instanceof Animal)  return 0xFF33FF33; // green: passive
+		return 0xFFFFAA00;                                 // orange: other
 	}
 
 	public static void onPlayerDisconnect(UUID playerId) {
