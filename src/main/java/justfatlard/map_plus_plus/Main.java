@@ -41,7 +41,7 @@ public class Main implements ModInitializer {
 				new PlayerInventoryApi.SlotEntry(
 					MapPlusPlusInventory.MAP_SLOT,
 					127, 62,
-					stack -> stack.is(Items.FILLED_MAP),
+					justfatlard.map_plus_plus.inventory.MapSlot::isMap,
 					"map-plus-plus:empty_map_slot"
 				),
 				new PlayerInventoryApi.SlotEntry(
