@@ -11,12 +11,6 @@ A Fabric mod that gives maps and compasses their own dedicated inventory slots a
   - Configurable position (any screen corner), size, and padding via a config file
 - **Mob Sight Enchantment**: An enchantment for compasses: while worn/held with sufficient level, nearby mobs are scanned each tick and shown as color-coded dots on the minimap (blue for villagers, red for hostiles, green for passive animals, orange for everything else)
 
-## Requirements
-
-- Targets the Minecraft, Fabric Loader, and Fabric API versions declared in this mod's `gradle.properties`. Check there for the exact currently-supported version
-- Java version as declared in `fabric.mod.json`'s `depends` block
-- Pandorical (see below)
-
 ## Pandorical
 
 Map++ is one of the most Pandorical-dependent mods in this suite:
@@ -35,8 +29,8 @@ A config file is generated at `config/map-plus-plus.properties` on first run, wi
 
 ## Installation
 
-Install alongside its declared dependencies (see `fabric.mod.json`), including Pandorical on both server and every connecting client.
+Install server-side alongside its declared dependencies (see `fabric.mod.json`); connecting clients need only Pandorical. Version targets live in `gradle.properties` (Minecraft, loader, Fabric API) and `fabric.mod.json` (Java).
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).
