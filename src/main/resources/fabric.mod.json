@@ -10,6 +10,7 @@
 		"issues": "https://github.com/fatlard1993/map-plus-plus/issues"
 	},
 	"license": "MIT",
+	"icon": "assets/map-plus-plus/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": ["justfatlard.map_plus_plus.Main"]
