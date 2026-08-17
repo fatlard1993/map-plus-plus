@@ -56,7 +56,6 @@ public class Main implements ModInitializer {
 		// Keep the in-memory MapPlusPlusInventory (read by MapEquipHandler) in sync
 		// whenever Pandorical processes a slot change (including on player login/respawn).
 		PandoricalApi.playerInventory().onSlotChange(SLOTS_NAMESPACE, (player, event) -> {
-			LOGGER.info("[map++] onSlotChange: player={} slot={} item={}", player.getName().getString(), event.slotIndex(), event.newStack());
 			MapPlusPlusInventory inv = ((MapPlusPlusPlayerAccess) player).mapPlusPlus$getInventory();
 			inv.setItem(event.slotIndex(), event.newStack());
 		});

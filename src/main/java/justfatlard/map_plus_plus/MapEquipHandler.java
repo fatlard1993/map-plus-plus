@@ -100,7 +100,6 @@ public class MapEquipHandler {
 				tickNeedleOnly(player, inv, hasCompass);
 				continue;
 			}
-			LOGGER.info("[map++] tick: player={} mapStack={} hasMapId={}", player.getName().getString(), mapStack, mapStack.get(net.minecraft.core.component.DataComponents.MAP_ID) != null);
 
 			MapId mapId = mapStack.get(DataComponents.MAP_ID);
 			if (mapId == null) {
@@ -156,19 +155,8 @@ public class MapEquipHandler {
 				// update: processes embedded decorations (treasure X marks, explorer map icons, etc.)
 				Item item = mapStack.getItem();
 				if (item instanceof MapItem mapItem) {
-					if (server.getTickCount() % 40 == 0) {
-						int before = 0; for (byte b : mapData.colors) if (b != 0) before++;
-						mapItem.update(player.level(), player, mapData);
-						int after = 0; for (byte b : mapData.colors) if (b != 0) after++;
-						LOGGER.info("[map++] update: before={} after={} dim={} center=({},{})",
-							before, after, mapData.dimension.toString(), mapData.centerX, mapData.centerZ);
-					} else {
-						mapItem.update(player.level(), player, mapData);
-					}
+					mapItem.update(player.level(), player, mapData);
 				}
-
-			} else {
-				LOGGER.warn("[map++] mapData is null for mapId={}", mapIdValue);
 			}
 
 			// --- Mob Sight enchantment: scan nearby mobs and send as HUD prop ---
@@ -239,8 +227,6 @@ public class MapEquipHandler {
 
 			if (lastState == null) {
 				// New: show HUD
-				LOGGER.info("[map++] Showing HUD for {} — mapId={} compass={} selfDec=({},{}) pandorical={}",
-					player.getName().getString(), mapIdValue, hasCompass, selfDecX, selfDecY, PandoricalApi.isAvailable(player));
 				showHud(player, mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY);
 				playerStates.put(playerId, currentState);
 			} else if (lastState.mapId() != mapIdValue) {
