@@ -4,6 +4,7 @@ import justfatlard.map_plus_plus.inventory.MapPlusPlusInventory;
 import justfatlard.pandorical.api.PandoricalApi;
 import justfatlard.pandorical.api.PlayerInventoryApi;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.registries.Registries;
@@ -59,6 +60,12 @@ public class Main implements ModInitializer {
 			MapPlusPlusInventory inv = ((MapPlusPlusPlayerAccess) player).mapPlusPlus$getInventory();
 			inv.setItem(event.slotIndex(), event.newStack());
 		});
+
+		// A respawn builds a new player object rather than reading one from disk,
+		// so saved data does not carry these slots across a death. This does.
+		ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) ->
+			((MapPlusPlusPlayerAccess) newPlayer).mapPlusPlus$getInventory()
+				.copyFrom(((MapPlusPlusPlayerAccess) oldPlayer).mapPlusPlus$getInventory()));
 
 		ServerTickEvents.END_SERVER_TICK.register(MapEquipHandler::tick);
 
