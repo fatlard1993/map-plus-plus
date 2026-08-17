@@ -44,6 +44,24 @@ public class MapEquipHandler {
 	private static final String OVERLAY_ID = "map-plus-plus:minimap";
 	private static final String MAP_COMPONENT_ID = "minimap";
 
+	/**
+	 * The compass with no map: a needle and a distance, nothing else.
+	 *
+	 * <p>A compass used to be decoration on a minimap, so equipping one without a
+	 * map showed nothing at all. That is wrong for the case the compass is best
+	 * at: a death compass, or a lodestone you are walking back to, is a single
+	 * bearing and a number, and drawing a whole map around it is the part you do
+	 * not need.
+	 */
+	private static final String NEEDLE_OVERLAY_ID = "map-plus-plus:needle";
+	private static final String NEEDLE_COMPONENT_ID = "needle";
+	private static final String NEEDLE_LABEL_ID = "needle_distance";
+	private static final String NEEDLE_TEXTURE = "map-plus-plus:textures/gui/sprites/needle.png";
+	private static final int NEEDLE_SIZE = 16;
+
+	/** Players currently shown the needle, so it is only pushed when it changes. */
+	private static final Map<UUID, Integer> needleBearing = new HashMap<>();
+
 	// Per-player last-known state
 	private static final Map<UUID, PlayerState> playerStates = new HashMap<>();
 
@@ -73,12 +91,13 @@ public class MapEquipHandler {
 			PlayerState lastState = playerStates.get(playerId);
 
 			if (mapStack.isEmpty()) {
-				// No map equipped
+				// No map equipped: the compass can still stand on its own.
 				if (lastState != null) {
 					PandoricalApi.hud().hide(player, OVERLAY_ID);
 					playerStates.remove(playerId);
 					lastMobData.remove(playerId);
 				}
+				tickNeedleOnly(player, inv, hasCompass);
 				continue;
 			}
 			LOGGER.info("[map++] tick: player={} mapStack={} hasMapId={}", player.getName().getString(), mapStack, mapStack.get(net.minecraft.core.component.DataComponents.MAP_ID) != null);
@@ -90,8 +109,12 @@ public class MapEquipHandler {
 					playerStates.remove(playerId);
 					lastMobData.remove(playerId);
 				}
+				tickNeedleOnly(player, inv, hasCompass);
 				continue;
 			}
+
+			// A map is up, so the needle would be saying the same thing twice.
+			hideNeedle(player);
 
 			int mapIdValue = mapId.id();
 
@@ -335,6 +358,82 @@ public class MapEquipHandler {
 		PandoricalApi.hud().show(player, hud.build());
 	}
 
+	/**
+	 * Show, update or hide the standalone needle for a player with no map.
+	 *
+	 * <p>Only pushed when the whole-degree bearing changes, so a player standing
+	 * still costs nothing and one walking sends about as much as the minimap did.
+	 */
+	private static void tickNeedleOnly(ServerPlayer player, MapPlusPlusInventory inv, boolean hasCompass) {
+		if (!hasCompass) {
+			hideNeedle(player);
+			return;
+		}
+
+		double[] target = computeCompassTarget(player, inv.getCompassStack());
+		if (target == null) {
+			hideNeedle(player);
+			return;
+		}
+
+		double dx = target[0] - player.getX();
+		double dz = target[1] - player.getZ();
+
+		// Yaw that faces the target, then made relative to where the player is
+		// already looking, so the needle reads as "that way from here" rather than
+		// "north is over there".
+		double facing = Math.toDegrees(Math.atan2(-dx, dz));
+		int bearing = Math.floorMod((int) Math.round(facing - player.getYRot()), 360);
+		int distance = (int) Math.round(Math.sqrt(dx * dx + dz * dz));
+
+		UUID playerId = player.getUUID();
+		Integer last = needleBearing.get(playerId);
+		if (last != null && last == bearing) return;
+
+		boolean firstShow = last == null;
+		needleBearing.put(playerId, bearing);
+
+		if (firstShow) {
+			showNeedle(player, bearing, distance);
+		} else {
+			PandoricalApi.hud().update(player, NEEDLE_OVERLAY_ID, List.of(
+				new ComponentUpdate(NEEDLE_COMPONENT_ID,
+					Map.of(ComponentType.PROP_ROTATION, String.valueOf(bearing))),
+				new ComponentUpdate(NEEDLE_LABEL_ID,
+					Map.of(ComponentType.PROP_TEXT, distance + "m"))
+			));
+		}
+	}
+
+	private static void showNeedle(ServerPlayer player, int bearing, int distance) {
+		String anchor = MapPlusPlusConfig.getPosition().name().toLowerCase();
+		int padding = MapPlusPlusConfig.getMinimapPadding();
+
+		HudBuilder hud = new HudBuilder(NEEDLE_OVERLAY_ID)
+			.anchor(anchor)
+			.offset(padding, padding)
+			.component(new ComponentBuilder(NEEDLE_COMPONENT_ID, ComponentType.SPRITE)
+				.bounds(0, 0, NEEDLE_SIZE, NEEDLE_SIZE)
+				.prop(ComponentType.PROP_TEXTURE, NEEDLE_TEXTURE)
+				.prop(ComponentType.PROP_ROTATION, String.valueOf(bearing))
+				// Turning is continuous, so the default short blend is right here:
+				// it hides the gap between pushes without lagging the needle.
+				.build())
+			.component(new ComponentBuilder(NEEDLE_LABEL_ID, ComponentType.TEXT)
+				.bounds(0, NEEDLE_SIZE + 2, NEEDLE_SIZE * 3, 9)
+				.prop(ComponentType.PROP_TEXT, distance + "m")
+				.prop(ComponentType.PROP_SHADOW, "true")
+				.build());
+
+		PandoricalApi.hud().show(player, hud.build());
+	}
+
+	private static void hideNeedle(ServerPlayer player) {
+		if (needleBearing.remove(player.getUUID()) != null) {
+			PandoricalApi.hud().hide(player, NEEDLE_OVERLAY_ID);
+		}
+	}
+
 	/** Returns ARGB color for a mob dot based on its type. */
 	private static int mobColor(LivingEntity entity) {
 		if (entity instanceof Villager) return 0xFF3399FF; // blue: villager
@@ -346,5 +445,6 @@ public class MapEquipHandler {
 	public static void onPlayerDisconnect(UUID playerId) {
 		playerStates.remove(playerId);
 		lastMobData.remove(playerId);
+		needleBearing.remove(playerId);
 	}
 }

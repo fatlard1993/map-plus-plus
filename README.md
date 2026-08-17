@@ -9,6 +9,7 @@ A Fabric mod that gives maps and compasses their own dedicated inventory slots a
   - Tracks and renders your position on the map in real time
   - When a compass is also equipped, shows a directional marker toward the compass's target (lodestone location, last death location for a recovery compass, or world spawn for a regular compass)
   - Configurable position (any screen corner), size, and padding via a config file
+- **Compass without a map**: a compass alone shows a needle and a distance in the same corner, rotated to where you are looking. A death compass or a lodestone you are walking back to is one bearing and one number, and the map is the part you do not need.
 - **Mob Sight Enchantment**: An enchantment for compasses: while worn/held with sufficient level, nearby mobs are scanned each tick and shown as color-coded dots on the minimap (blue for villagers, red for hostiles, green for passive animals, orange for everything else)
 
 ## Pandorical
