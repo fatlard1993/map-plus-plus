@@ -4,6 +4,7 @@ import justfatlard.map_plus_plus.inventory.MapPlusPlusInventory;
 import justfatlard.pandorical.api.PandoricalApi;
 import justfatlard.pandorical.api.PlayerInventoryApi;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -72,6 +73,12 @@ public class Main implements ModInitializer {
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			MapEquipHandler.onPlayerDisconnect(handler.getPlayer().getUUID());
 		});
+
+		// Isolated in its own class and only reached from here: it refers to
+		// Village Quests types directly, so it must not load without that mod.
+		if (FabricLoader.getInstance().isModLoaded("village-quests-justfatlard")) {
+			justfatlard.map_plus_plus.integration.VillageQuestsLessons.register();
+		}
 
 		LOGGER.info("[{}] Loaded (server-side with Pandorical)", MOD_ID);
 	}

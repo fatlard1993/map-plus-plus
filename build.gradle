@@ -21,6 +21,7 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
 	implementation(project(':pandorical'))
+	implementation(project(':village-quests'))
 }
 
 processResources {
