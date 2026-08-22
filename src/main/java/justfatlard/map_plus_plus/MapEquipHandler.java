@@ -60,7 +60,30 @@ public class MapEquipHandler {
 	private static final int NEEDLE_SIZE = 16;
 
 	/** Players currently shown the needle, so it is only pushed when it changes. */
-	private static final Map<UUID, Integer> needleBearing = new HashMap<>();
+	/**
+	 * What the needle is currently showing each player, so nothing is pushed twice.
+	 *
+	 * <p>Was the bearing alone, which meant walking straight at the target never changed it and
+	 * the distance under the needle sat frozen the whole way in. Holding what is actually drawn
+	 * means anything that changes on screen gets sent and nothing else does.
+	 */
+	private record NeedleState(int bearing, String label) {}
+
+	private static final Map<UUID, NeedleState> needleBearing = new HashMap<>();
+
+	/**
+	 * The eight-point heading the player is facing.
+	 *
+	 * <p>Minecraft's yaw has zero facing south and grows clockwise, so the labels start there.
+	 * The half-step in the rounding puts the boundary between two names in the middle of the gap
+	 * between them, rather than on top of one, which is what stops a name flickering when you
+	 * stand on a diagonal.
+	 */
+	private static final String[] HEADINGS = {"S", "SW", "W", "NW", "N", "NE", "E", "SE"};
+
+	private static String headingOf(float yaw) {
+		return HEADINGS[Math.floorMod((int) Math.floor(yaw / 45.0F + 0.5F), HEADINGS.length)];
+	}
 
 	// Per-player last-known state
 	private static final Map<UUID, PlayerState> playerStates = new HashMap<>();
@@ -347,8 +370,8 @@ public class MapEquipHandler {
 	/**
 	 * Show, update or hide the standalone needle for a player with no map.
 	 *
-	 * <p>Only pushed when the whole-degree bearing changes, so a player standing
-	 * still costs nothing and one walking sends about as much as the minimap did.
+	 * <p>Only pushed when something on screen would differ, so a player standing still costs
+	 * nothing and one walking sends about as much as the minimap did.
 	 */
 	private static void tickNeedleOnly(ServerPlayer player, MapPlusPlusInventory inv, boolean hasCompass) {
 		if (!hasCompass) {
@@ -372,26 +395,30 @@ public class MapEquipHandler {
 		int bearing = Math.floorMod((int) Math.round(facing - player.getYRot()), 360);
 		int distance = (int) Math.round(Math.sqrt(dx * dx + dz * dz));
 
+		// Which way the player is facing, which is a different question from which way the
+		// needle points: the needle is relative to their heading, so on its own it says
+		// "that way from here" and never says where here is pointed.
+		String label = headingOf(player.getYRot()) + "  " + distance + "m";
+
 		UUID playerId = player.getUUID();
-		Integer last = needleBearing.get(playerId);
-		if (last != null && last == bearing) return;
+		NeedleState last = needleBearing.get(playerId);
+		if (last != null && last.bearing() == bearing && last.label().equals(label)) return;
 
-		boolean firstShow = last == null;
-		needleBearing.put(playerId, bearing);
+		needleBearing.put(playerId, new NeedleState(bearing, label));
 
-		if (firstShow) {
-			showNeedle(player, bearing, distance);
+		if (last == null) {
+			showNeedle(player, bearing, label);
 		} else {
 			PandoricalApi.hud().update(player, NEEDLE_OVERLAY_ID, List.of(
 				new ComponentUpdate(NEEDLE_COMPONENT_ID,
 					Map.of(ComponentType.PROP_ROTATION, String.valueOf(bearing))),
 				new ComponentUpdate(NEEDLE_LABEL_ID,
-					Map.of(ComponentType.PROP_TEXT, distance + "m"))
+					Map.of(ComponentType.PROP_TEXT, label))
 			));
 		}
 	}
 
-	private static void showNeedle(ServerPlayer player, int bearing, int distance) {
+	private static void showNeedle(ServerPlayer player, int bearing, String label) {
 		String anchor = MapPlusPlusConfig.getPosition().name().toLowerCase();
 		int padding = MapPlusPlusConfig.getMinimapPadding();
 
@@ -407,7 +434,7 @@ public class MapEquipHandler {
 				.build())
 			.component(new ComponentBuilder(NEEDLE_LABEL_ID, ComponentType.TEXT)
 				.bounds(0, NEEDLE_SIZE + 2, NEEDLE_SIZE * 3, 9)
-				.prop(ComponentType.PROP_TEXT, distance + "m")
+				.prop(ComponentType.PROP_TEXT, label)
 				.prop(ComponentType.PROP_SHADOW, "true")
 				.build());
 
