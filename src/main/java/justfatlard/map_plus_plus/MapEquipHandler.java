@@ -197,9 +197,15 @@ public class MapEquipHandler {
 					}
 				}
 
+				int scaleFactor = 1 << mapData.scale;
+
+				// Other players, always. Mob Sight decides whether you can see the wildlife;
+				// knowing where the people you are playing with are standing is what a shared
+				// map is for, and it should not depend on an enchantment.
+				String currentPlayers = otherPlayerDots(player, mapData, scaleFactor);
+
 				String currentMobs = "";
 				if (mobSightLevel > 0) {
-					int scaleFactor = 1 << mapData.scale;
 					int range = 64 * scaleFactor;
 					double cx = mapData.centerX;
 					double cz = mapData.centerZ;
@@ -208,9 +214,11 @@ public class MapEquipHandler {
 						cx + range, 384, cz + range
 					);
 
+					// Players are drawn from their own list above; without this they arrive twice,
+					// once in team colour and once in whatever mobColor makes of them.
 					List<LivingEntity> mobs = player.level().getEntitiesOfClass(
 						LivingEntity.class, scanBox,
-						e -> e != player
+						e -> e != player && !(e instanceof net.minecraft.world.entity.player.Player)
 					);
 
 					// Sort by distance to player, take top 50
@@ -235,6 +243,10 @@ public class MapEquipHandler {
 						sb.append(decX).append(',').append(decZ).append(',').append(color).append(',').append(entityTypeId);
 					}
 					currentMobs = sb.toString();
+				}
+
+				if (!currentPlayers.isEmpty()) {
+					currentMobs = currentMobs.isEmpty() ? currentPlayers : currentPlayers + ";" + currentMobs;
 				}
 
 				String lastMobs = lastMobData.getOrDefault(playerId, "");
@@ -329,6 +341,41 @@ public class MapEquipHandler {
 		if (Double.isNaN(a) && Double.isNaN(b)) return true;
 		if (Double.isNaN(a) || Double.isNaN(b)) return false;
 		return Math.abs(a - b) < 0.5;
+	}
+
+	/**
+	 * Everyone else on this map, as dots in their team's colour.
+	 *
+	 * <p>Rides the same channel the mob dots use, because the client already knows how to draw
+	 * that: position in map bytes, a colour, and the entity type. Team colour rather than one
+	 * flat shade so a glance at the minimap says who is who, and white for anybody unteamed,
+	 * which is what {@code getTeamColor} already answers for them.
+	 *
+	 * <p>The player holding the map is not in the list: they get vanilla's own arrow, drawn from
+	 * the self position the server sends separately, so they can tell which dot is theirs by it
+	 * not being a dot.
+	 */
+	private static String otherPlayerDots(ServerPlayer self, MapItemSavedData mapData, int scaleFactor) {
+		double cx = mapData.centerX;
+		double cz = mapData.centerZ;
+		int range = 64 * scaleFactor;
+
+		StringBuilder sb = new StringBuilder();
+		for (ServerPlayer other : self.level().players()) {
+			if (other == self || other.isSpectator()) continue;
+			if (Math.abs(other.getX() - cx) > range || Math.abs(other.getZ() - cz) > range) continue;
+
+			int rawX = (int) Math.round((other.getX() - cx) / scaleFactor * 2);
+			int rawZ = (int) Math.round((other.getZ() - cz) / scaleFactor * 2);
+			byte decX = (byte) Math.max(-127, Math.min(127, rawX));
+			byte decZ = (byte) Math.max(-127, Math.min(127, rawZ));
+
+			if (sb.length() > 0) sb.append(';');
+			sb.append(decX).append(',').append(decZ).append(',')
+				.append(0xFF000000 | other.getTeamColor()).append(',')
+				.append("minecraft:player");
+		}
+		return sb.toString();
 	}
 
 	private static Map<String, String> buildProps(int mapId, boolean hasCompass,
