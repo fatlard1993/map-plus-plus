@@ -28,6 +28,11 @@ public class Main implements ModInitializer {
 		Identifier.fromNamespaceAndPath(MOD_ID, "mob_sight")
 	);
 
+	public static final ResourceKey<Enchantment> SCROLL = ResourceKey.create(
+		Registries.ENCHANTMENT,
+		Identifier.fromNamespaceAndPath(MOD_ID, "scroll")
+	);
+
 	/** Namespace used when registering our slot group with Pandorical. */
 	public static final Identifier SLOTS_NAMESPACE = Identifier.fromNamespaceAndPath(MOD_ID, "slots");
 

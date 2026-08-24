@@ -110,6 +110,10 @@ public class MapEquipHandler {
 			ItemStack mapStack = inv.getMapStack();
 			boolean hasCompass = inv.hasCompass();
 
+			// Before anything is read off the map, in case this is the tick it moves: everything
+			// below wants the centre it will have, not the one it is about to leave behind.
+			ScrollMap.tick(player, mapStack);
+
 			UUID playerId = player.getUUID();
 			PlayerState lastState = playerStates.get(playerId);
 
