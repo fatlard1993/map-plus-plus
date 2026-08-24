@@ -153,6 +153,7 @@ public class MapEquipHandler {
 			byte selfDecY = 0;
 			byte compassDecX = 0;
 			byte compassDecY = 0;
+			boolean compassOffMap = false;
 			MapItemSavedData mapData = MapItem.getSavedData(mapId, player.level());
 			if (mapData != null) {
 				int scaleFactor = 1 << mapData.scale;
@@ -160,12 +161,25 @@ public class MapEquipHandler {
 				int rawY = (int)Math.round((player.getZ() - mapData.centerZ) / scaleFactor * 2.0);
 				selfDecX = (byte)Math.max(-127, Math.min(127, rawX));
 				selfDecY = (byte)Math.max(-127, Math.min(127, rawY));
-				// Compass target as stable map dec bytes (independent of player position)
+				// Compass target as stable map dec bytes (independent of player position).
+				//
+				// Walked back along its own bearing when it falls outside, rather than clamped
+				// per axis: two independent clamps put anything past a corner *in* that corner,
+				// so a target away to the north-east and one away to the east arrived at the
+				// same pixel. Scaling both by the same factor keeps the direction, which is the
+				// only thing an off-map marker has left to say.
 				if (!Double.isNaN(compassTx) && !Double.isNaN(compassTz)) {
-					compassDecX = (byte)Math.max(-127, Math.min(127,
-						(int)Math.round((compassTx - mapData.centerX) / scaleFactor * 2.0)));
-					compassDecY = (byte)Math.max(-127, Math.min(127,
-						(int)Math.round((compassTz - mapData.centerZ) / scaleFactor * 2.0)));
+					double dx = (compassTx - mapData.centerX) / scaleFactor * 2.0;
+					double dz = (compassTz - mapData.centerZ) / scaleFactor * 2.0;
+					double furthest = Math.max(Math.abs(dx), Math.abs(dz));
+
+					compassOffMap = furthest > 127.0;
+					if (compassOffMap) {
+						dx = dx / furthest * 127.0;
+						dz = dz / furthest * 127.0;
+					}
+					compassDecX = (byte) Math.round(dx);
+					compassDecY = (byte) Math.round(dz);
 				}
 			}
 
@@ -262,12 +276,12 @@ public class MapEquipHandler {
 
 			if (lastState == null) {
 				// New: show HUD
-				showHud(player, mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY);
+				showHud(player, mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY, compassOffMap);
 				playerStates.put(playerId, currentState);
 			} else if (lastState.mapId() != mapIdValue) {
 				// Map changed
 				PandoricalApi.hud().update(player, OVERLAY_ID, List.of(
-					new ComponentUpdate(MAP_COMPONENT_ID, buildProps(mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY))
+					new ComponentUpdate(MAP_COMPONENT_ID, buildProps(mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY, compassOffMap))
 				));
 				playerStates.put(playerId, currentState);
 			} else if (lastState.hasCompass() != hasCompass
@@ -277,7 +291,7 @@ public class MapEquipHandler {
 					|| lastState.selfDecY() != selfDecY) {
 				// Compass/target/position changed
 				PandoricalApi.hud().update(player, OVERLAY_ID, List.of(
-					new ComponentUpdate(MAP_COMPONENT_ID, buildProps(mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY))
+					new ComponentUpdate(MAP_COMPONENT_ID, buildProps(mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY, compassOffMap))
 				));
 				playerStates.put(playerId, currentState);
 			}
@@ -380,7 +394,7 @@ public class MapEquipHandler {
 
 	private static Map<String, String> buildProps(int mapId, boolean hasCompass,
 			double compassTx, double compassTz, byte selfDecX, byte selfDecY,
-			byte compassDecX, byte compassDecY) {
+			byte compassDecX, byte compassDecY, boolean offMap) {
 		Map<String, String> m = new java.util.HashMap<>();
 		m.put("map_id",       String.valueOf(mapId));
 		m.put("rotate",       String.valueOf(hasCompass));
@@ -388,6 +402,10 @@ public class MapEquipHandler {
 		m.put("compass_tz",   formatCoord(compassTz));
 		m.put("self_dec_x",   String.valueOf(selfDecX));
 		m.put("self_dec_y",   String.valueOf(selfDecY));
+		m.put("compass_off_map", String.valueOf(offMap));
+		// The heading arrow the client lays in the corner. Ours to supply, because the texture
+		// ships in this mod and pandorical has no business knowing its name.
+		m.put("needle", NEEDLE_TEXTURE);
 		// Stable map-coord bytes for the X marker: avoids drift when player is clamped at edge
 		m.put("compass_dec_x", String.valueOf(compassDecX));
 		m.put("compass_dec_y", String.valueOf(compassDecY));
@@ -396,12 +414,12 @@ public class MapEquipHandler {
 
 	private static void showHud(ServerPlayer player, int mapId, boolean hasCompass,
 			double compassTx, double compassTz, byte selfDecX, byte selfDecY,
-			byte compassDecX, byte compassDecY) {
+			byte compassDecX, byte compassDecY, boolean offMap) {
 		int size = MapPlusPlusConfig.getMinimapSize();
 		String anchor = MapPlusPlusConfig.getPosition().name().toLowerCase();
 		int padding = MapPlusPlusConfig.getMinimapPadding();
 
-		Map<String, String> props = buildProps(mapId, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY);
+		Map<String, String> props = buildProps(mapId, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY, offMap);
 		ComponentBuilder comp = new ComponentBuilder(MAP_COMPONENT_ID, ComponentType.MAP)
 			.bounds(0, 0, size, size);
 		props.forEach(comp::prop);
