@@ -12,6 +12,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Animal;
@@ -189,14 +190,30 @@ public class MapEquipHandler {
 
 			PlayerState currentState = new PlayerState(mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY);
 
-			// Tick the map so vanilla sends data updates to the client
+			// Tick the map, and then post it, because nothing else will.
 			if (mapData != null) {
-				// tickCarriedBy: updates player position decoration and sends map packet to client
+				// Registers the player as a carrier and keeps their position decoration current.
 				mapData.tickCarriedBy(player, mapStack, null);
-				// update: processes embedded decorations (treasure X marks, explorer map icons, etc.)
+
+				// The terrain scan: this is what turns fog into ground as somebody walks.
 				Item item = mapStack.getItem();
 				if (item instanceof MapItem mapItem) {
 					mapItem.update(player.level(), player, mapData);
+				}
+
+				// And the delivery, which vanilla will not do for a map kept here.
+				//
+				// ServerPlayer walks its own Inventory - all 41 slots of it - and posts a map
+				// packet for every map it finds. This slot is an attachment and not part of that
+				// inventory, so a map in it was scanned into the server's copy every tick and
+				// never sent anywhere: the ground was explored, recorded, and invisible. Taking
+				// the map into a hand put it back in the walk and the whole backlog arrived at
+				// once, which reads as the map filling in the instant you unequip it.
+				//
+				// Null when there is nothing new, so this costs a comparison on a still player.
+				Packet<?> update = mapData.getUpdatePacket(mapId, player);
+				if (update != null) {
+					player.connection.send(update);
 				}
 			}
 
