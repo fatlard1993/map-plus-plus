@@ -23,9 +23,9 @@
 		"map-plus-plus.mixins.json"
 	],
 	"depends": {
-		"fabricloader": ">=0.18.1",
-		"fabric-api": ">=0.140.2",
-		"minecraft": ">=26.2",
+		"fabricloader": ">=${loaderVersion}",
+		"fabric-api": "${fabricApiVersion}",
+		"minecraft": "${minecraftDependency}",
 		"java": ">=25",
 		"pandorical": "*"
 	},
