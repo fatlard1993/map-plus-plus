@@ -10,6 +10,8 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CompassItem;
 import net.minecraft.world.item.Items;
@@ -65,6 +67,35 @@ public class Main implements ModInitializer {
 		PandoricalApi.playerInventory().onSlotChange(SLOTS_NAMESPACE, (player, event) -> {
 			MapPlusPlusInventory inv = ((MapPlusPlusPlayerAccess) player).mapPlusPlus$getInventory();
 			inv.setItem(event.slotIndex(), event.newStack());
+		});
+
+		// Two stores hold these slots and they can come apart.
+		//
+		// Pandorical's is what the inventory screen draws from; this mod keeps its own copy
+		// because the minimap is read every tick and the attachment is not shaped for that. The
+		// listener above keeps the copy following the original, which is fine while both
+		// survive - but Pandorical's attachment used not to be carried across a death while this
+		// copy was, and a player who died in that window came back with a map the minimap could
+		// see and the slot could not. Both are saved to disk, so the disagreement kept.
+		//
+		// Reconciled on the way in, once, in the only direction that can recover anything: where
+		// the slot reads empty and this copy does not, the copy is holding the survivor and it
+		// goes back through Pandorical - the same path a player dropping an item in would take.
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			ServerPlayer player = handler.getPlayer();
+			MapPlusPlusInventory mirror = ((MapPlusPlusPlayerAccess) player).mapPlusPlus$getInventory();
+			var slots = PandoricalApi.playerInventory();
+
+			for (int slot = 0; slot < mirror.getContainerSize(); slot++) {
+				ItemStack kept = mirror.getItem(slot);
+				if (kept.isEmpty()) continue;
+				if (!slots.getSlot(player, SLOTS_NAMESPACE, slot).isEmpty()) continue;
+
+				LOGGER.info("[{}] Restoring {} to slot {} for {} - it was in this mod's copy and"
+					+ " not in the shared one", MOD_ID, kept.getItem(), slot,
+					player.getName().getString());
+				slots.setSlot(player, SLOTS_NAMESPACE, slot, kept.copy());
+			}
 		});
 
 		// A respawn builds a new player object rather than reading one from disk,
