@@ -41,6 +41,7 @@ public class Main implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		MapPlusPlusConfig.load();
+		if (justfatlard.pandorical.api.PandoricalApi.isAvailable()) MinimapPrefs.register();
 
 		// Register the map and compass slots with Pandorical.
 		// Pandorical patches InventoryMenu on both sides and persists slot data automatically.

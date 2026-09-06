@@ -24,6 +24,16 @@ The compass's own needle is drawn small in the bottom-left corner of the map, so
 
 **A compass with no map** gets the corner to itself: a needle and a distance, rotated to where you are looking. A death compass or a lodestone you are walking back to is one bearing and one number, and the map is the part you do not need.
 
+## The Cartography Table
+
+The table already copies a map onto a blank map and widens one with paper. It now does the same two things for compasses.
+
+**A lodestone compass copies.** Put it in the map slot and a plain compass in the other, and two come out pointing at the same lodestone. The plain one is the blank, the way an empty map is for a map copy.
+
+**A compass marks a map.** Put the map in the map slot and any compass in the other, and the map comes out with an X where the compass points: its lodestone, your last death for a recovery compass, world spawn for a plain one. The place has to be on the map - same dimension, inside its edges - or the table offers nothing, the way it offers nothing for a map that cannot be widened any further. The compass is not spent; the map has learned where it points, and it still points there. Mark the same map again with another compass and the X's add up, so one map can carry every lodestone you own.
+
+The mark is the same one an explorer map carries for its target, stored on the item the same way, so it survives copying, framing and every vanilla client.
+
 ## Enchantments
 
 **Scroll**, one level, for maps. An ordinary map is a picture of where it was made: walk far enough and you fall off the edge of it, and the only cure is to make a second one and carry both. A scroll map re-centres itself on whoever is holding it, so the thing in your hand is always about where you are.
@@ -45,9 +55,15 @@ Map++ is one of the most Pandorical-dependent mods in this suite. The slots are 
 
 **Pandorical must be installed client-side for any of this to appear.** Without it there are no extra slots and no minimap. No Map++ jar is needed on a client.
 
-## Configuration
+## Settings
 
-`config/map-plus-plus.properties`, generated on first run:
+Every minimap setting is the player's own, on the Map++ page of Pandorical's mod menu: which
+corner it sits in, its size and padding, its zoom, whether the facing-and-coordinates line
+shows under it, and whether hostile and other mobs are drawn on it. Each player's choices are
+kept by Pandorical on the server, so they follow the player and never touch anyone else's map.
+
+`config/map-plus-plus.properties`, generated on first run, holds what a player gets before they
+have chosen:
 
 | Key | |
 |---|---|
@@ -55,21 +71,9 @@ Map++ is one of the most Pandorical-dependent mods in this suite. The slots are 
 | `minimap_size` | Size in pixels |
 | `minimap_padding` | Padding from the screen edge in pixels |
 
-## Source Map
+## Development
 
-| File | What is in it |
-|---|---|
-| `MapEquipHandler.java` | What the minimap shows, and pushing it to the client each tick |
-| `ScrollMap.java` | Re-centring a scroll map on its owner, in place |
-| `inventory/MapPlusPlusInventory.java` | The two slots' contents, per player |
-| `inventory/MapSlot.java` | What counts as a map |
-| `inventory/CompassSlot.java` | What counts as a compass |
-| `mixin/PlayerIsHoldingMixin.java` | Teaching `Inventory.contains` to look in the slots, so map tracking holds |
-| `integration/VillageQuestsLessons.java` | What a villager can teach about maps |
-
-## Installation
-
-Install server-side alongside its declared dependencies (see `fabric.mod.json`); connecting clients need only Pandorical. Version targets live in `gradle.properties` (Minecraft, loader, Fabric API) and `fabric.mod.json` (Java).
+Installing and the map of the source are in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## License
 

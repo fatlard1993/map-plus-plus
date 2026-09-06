@@ -1,12 +1,12 @@
 package justfatlard.map_plus_plus;
 
+import justfatlard.map_plus_plus.integration.FishingOverlay;
 import justfatlard.map_plus_plus.inventory.MapPlusPlusInventory;
 import justfatlard.pandorical.api.ComponentBuilder;
 import justfatlard.pandorical.api.ComponentType;
 import justfatlard.pandorical.api.HudBuilder;
 import justfatlard.pandorical.api.PandoricalApi;
 import justfatlard.pandorical.protocol.ComponentUpdate;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -18,12 +18,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.item.CompassItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.component.LodestoneTracker;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.saveddata.maps.MapId;
@@ -34,7 +31,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -117,6 +113,20 @@ public class MapEquipHandler {
 
 			UUID playerId = player.getUUID();
 			PlayerState lastState = playerStates.get(playerId);
+
+			// The minigame gets the screen. Both sit in a corner of it, and only one of them is
+			// asking to be watched right now - the map will still be there when the fish is landed.
+			// Handled exactly like having no map at all: hidden, and the remembered state dropped,
+			// so it comes back fresh rather than resuming mid-thought.
+			if (FishingOverlay.isUp(player)) {
+				if (lastState != null) {
+					PandoricalApi.hud().hide(player, OVERLAY_ID);
+					playerStates.remove(playerId);
+					lastMobData.remove(playerId);
+				}
+				hideNeedle(player);
+				continue;
+			}
 
 			if (mapStack.isEmpty()) {
 				// No map equipped: the compass can still stand on its own.
@@ -320,50 +330,14 @@ public class MapEquipHandler {
 	}
 
 	/**
-	 * Resolves the compass target world coordinates for the given player and compass stack.
-	 * Returns a double[]{x, z} if a target is found in the player's current dimension,
-	 * or null if no target is available.
+	 * Where the compass points, as x/z in the player's own dimension, or null: nothing to point
+	 * at, or a place in another world, which on this map is the same as nothing.
 	 */
 	private static double[] computeCompassTarget(ServerPlayer player, ItemStack compassStack) {
-		if (compassStack.isEmpty()) return null;
-
-		// 1. Lodestone compass: has LODESTONE_TRACKER component with a target GlobalPos
-		LodestoneTracker lodestoneTracker = compassStack.get(DataComponents.LODESTONE_TRACKER);
-		if (lodestoneTracker != null) {
-			Optional<GlobalPos> targetOpt = lodestoneTracker.target();
-			if (targetOpt.isPresent()) {
-				GlobalPos gp = targetOpt.get();
-				// Only valid if the lodestone is in the player's current dimension
-				if (gp.dimension().equals(player.level().dimension())) {
-					return new double[]{gp.pos().getX(), gp.pos().getZ()};
-				}
-			}
-			return null; // lodestone is in another dimension or lost
-		}
-
-		// 2. Recovery compass: points to player's last death location
-		if (compassStack.is(Items.RECOVERY_COMPASS)) {
-			Optional<GlobalPos> deathOpt = player.getLastDeathLocation();
-			if (deathOpt.isPresent()) {
-				GlobalPos gp = deathOpt.get();
-				if (gp.dimension().equals(player.level().dimension())) {
-					return new double[]{gp.pos().getX(), gp.pos().getZ()};
-				}
-			}
-			return null; // no death recorded or in another dimension
-		}
-
-		// 3. Regular compass (CompassItem): points to world spawn of the overworld
-		if (compassStack.getItem() instanceof CompassItem) {
-			// Only meaningful in the overworld
-			if (player.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) {
-				net.minecraft.core.BlockPos spawnPos = player.level().getServer().overworld().getRespawnData().pos();
-				return new double[]{spawnPos.getX(), spawnPos.getZ()};
-			}
-			return null;
-		}
-
-		return null;
+		return CompassTarget.resolve(player, compassStack)
+			.filter(place -> place.dimension().equals(player.level().dimension()))
+			.map(place -> new double[]{place.pos().getX(), place.pos().getZ()})
+			.orElse(null);
 	}
 
 	/** Format a coordinate as a string, or "" if NaN (no target). */
@@ -413,6 +387,30 @@ public class MapEquipHandler {
 		return sb.toString();
 	}
 
+	/** What the player chose about how the map is drawn; the client draws whatever it is told. */
+	private static Map<String, String> displayProps(ServerPlayer player) {
+		Map<String, String> m = new java.util.HashMap<>();
+		m.put(ComponentType.PROP_MAP_ZOOM, String.valueOf(MinimapPrefs.zoom(player)));
+		m.put(ComponentType.PROP_MAP_SHOW_COORDS, String.valueOf(MinimapPrefs.coords(player)));
+		m.put(ComponentType.PROP_MAP_SHOW_HOSTILE, String.valueOf(MinimapPrefs.hostile(player)));
+		m.put(ComponentType.PROP_MAP_SHOW_PASSIVE, String.valueOf(MinimapPrefs.passive(player)));
+		return m;
+	}
+
+	/**
+	 * A preference changed: take the overlays down and forget them, so the next tick puts them
+	 * back where and how the player now wants them. Cheaper than teaching every update path
+	 * about geometry that changes once in a blue moon.
+	 */
+	public static void refresh(ServerPlayer player) {
+		UUID playerId = player.getUUID();
+		if (playerStates.remove(playerId) != null) {
+			lastMobData.remove(playerId);
+			PandoricalApi.hud().hide(player, OVERLAY_ID);
+		}
+		hideNeedle(player);
+	}
+
 	private static Map<String, String> buildProps(int mapId, boolean hasCompass,
 			double compassTx, double compassTz, byte selfDecX, byte selfDecY,
 			byte compassDecX, byte compassDecY, boolean offMap) {
@@ -433,16 +431,26 @@ public class MapEquipHandler {
 		return m;
 	}
 
+	/**
+	 * Room under the map for the facing-and-coordinates line: the vanilla font's line height plus
+	 * a pixel above and below it.
+	 */
+	private static final int READOUT_HEIGHT = 11;
+
 	private static void showHud(ServerPlayer player, int mapId, boolean hasCompass,
 			double compassTx, double compassTz, byte selfDecX, byte selfDecY,
 			byte compassDecX, byte compassDecY, boolean offMap) {
-		int size = MapPlusPlusConfig.getMinimapSize();
-		String anchor = MapPlusPlusConfig.getPosition().name().toLowerCase();
-		int padding = MapPlusPlusConfig.getMinimapPadding();
+		int size = MinimapPrefs.size(player);
+		String anchor = MinimapPrefs.anchor(player);
+		int padding = MinimapPrefs.padding(player);
 
 		Map<String, String> props = buildProps(mapId, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY, offMap);
+		props.putAll(displayProps(player));
+		// Taller than it is wide, by one line. The map itself stays square - the component draws
+		// it at min(width, height) - and the extra height is the strip the coordinate readout sits
+		// in, under the frame instead of printed across the ground it is naming.
 		ComponentBuilder comp = new ComponentBuilder(MAP_COMPONENT_ID, ComponentType.MAP)
-			.bounds(0, 0, size, size);
+			.bounds(0, 0, size, size + READOUT_HEIGHT);
 		props.forEach(comp::prop);
 
 		HudBuilder hud = new HudBuilder(OVERLAY_ID)
@@ -505,8 +513,8 @@ public class MapEquipHandler {
 	}
 
 	private static void showNeedle(ServerPlayer player, int bearing, String label) {
-		String anchor = MapPlusPlusConfig.getPosition().name().toLowerCase();
-		int padding = MapPlusPlusConfig.getMinimapPadding();
+		String anchor = MinimapPrefs.anchor(player);
+		int padding = MinimapPrefs.padding(player);
 
 		HudBuilder hud = new HudBuilder(NEEDLE_OVERLAY_ID)
 			.anchor(anchor)

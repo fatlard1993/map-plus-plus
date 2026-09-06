@@ -16,6 +16,23 @@ loom {
 }
 
 dependencies {
+	// Optional: minedew-fishing integration, compile-only and never bundled. Resolved by the
+	// version that mod declares rather than one written down here, so a bump cannot leave this
+	// compiling green against a jar an old build left behind.
+	def fishingProperties = file("../minedew-fishing/gradle.properties")
+	if (fishingProperties.exists()) {
+		def fishingVersion = new Properties().with {
+			fishingProperties.withInputStream { load(it) }
+			getProperty("mod_version")
+		}
+		def fishingJar = file("../minedew-fishing/build/libs/minedew-fishing-${fishingVersion}.jar")
+		if (!fishingJar.exists()) {
+			throw new GradleException("minedew-fishing ${fishingVersion} is not built. Run" +
+				" `mc-build minedew-fishing` first - this mod compiles against its API.")
+		}
+		compileOnly files(fishingJar)
+	}
+
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
@@ -64,5 +81,9 @@ java {
 jar {
 	from("LICENSE") {
 		rename { "${it}_${project.base.archivesName.get()}" }
+	}
+	// The readme rides in the jar beside the licence, so a server can show it in-game.
+	from("README.md") {
+		rename { "README_${project.base.archivesName.get()}.md" }
 	}
 }

@@ -32,6 +32,7 @@ public class MapPlusPlusConfig {
 	private static final String DEFAULT_CONFIG = """
 			# Map++ Configuration
 			# Delete this file to regenerate with defaults.
+			# These are what a player gets until they choose their own in the mod menu.
 
 			# Minimap position on screen: TOP_RIGHT, TOP_LEFT, BOTTOM_RIGHT, BOTTOM_LEFT
 			minimap_position=TOP_RIGHT

@@ -4,7 +4,11 @@
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
 		"PlayerMixin",
-		"PlayerIsHoldingMixin"
+		"PlayerIsHoldingMixin",
+		"CartographyTableMenuMixin",
+		"CartographyMapSlotMixin",
+		"CartographyExtraSlotMixin",
+		"CartographyResultSlotMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
