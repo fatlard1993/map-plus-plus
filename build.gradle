@@ -41,6 +41,18 @@ dependencies {
 	implementation(project(':village-quests'))
 }
 
+// src/gametest: runClientGameTest joins a world and checks what the minimap is given. It opens a
+// window: run it under xvfb-run.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "map-plus-plus-gametest"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
 // Fabric tests these predicates against the loader's *normalized* game version,
 // not Mojang's id: 26.3-snapshot-10 is compared as 26.3-alpha.10. So a floor of
 // ">=26.3" is false on every 26.3 snapshot, and writing the obvious thing makes

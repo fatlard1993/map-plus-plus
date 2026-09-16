@@ -54,10 +54,14 @@ public final class CompassCartography {
 		return ItemStack.EMPTY;
 	}
 
-	/** A compass that has found its lodestone. One that lost it has nothing worth copying. */
+	/**
+	 * A compass that has found its lodestone. One that lost it has nothing worth copying, and a
+	 * Block Magnet, which points the same way but at no lodestone, is not copied: the copy would
+	 * carry its enchantment too.
+	 */
 	private static boolean isTracked(ItemStack stack) {
 		LodestoneTracker tracker = stack.get(DataComponents.LODESTONE_TRACKER);
-		return stack.is(Items.COMPASS) && tracker != null && tracker.target().isPresent();
+		return stack.is(Items.COMPASS) && tracker != null && tracker.tracked() && tracker.target().isPresent();
 	}
 
 	/** A plain compass with no lodestone of its own: the blank the copy goes onto. */

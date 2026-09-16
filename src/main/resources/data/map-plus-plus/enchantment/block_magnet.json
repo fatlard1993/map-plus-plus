@@ -1,0 +1,20 @@
+{
+  "description": {
+    "translate": "enchantment.map-plus-plus.block_magnet"
+  },
+  "supported_items": "#map-plus-plus:enchantable/block_magnet",
+  "primary_items": "#map-plus-plus:enchantable/block_magnet",
+  "weight": 2,
+  "max_level": 3,
+  "anvil_cost": 4,
+  "min_cost": {
+    "base": 25,
+    "per_level_above_first": 25
+  },
+  "max_cost": {
+    "base": 75,
+    "per_level_above_first": 25
+  },
+  "slots": ["any"],
+  "effects": {}
+}

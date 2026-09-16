@@ -1,4 +1,11 @@
 {
   "enchantment.map-plus-plus.mob_sight": "Mob Sight",
-  "enchantment.map-plus-plus.scroll": "Scroll"
+  "enchantment.map-plus-plus.scroll": "Scroll",
+  "enchantment.map-plus-plus.block_magnet": "Block Magnet",
+  "item.map-plus-plus.block_magnet.seeking": "Seeks %s",
+  "message.map-plus-plus.block_magnet.found": "Seeking %s: the nearest is %s blocks away",
+  "message.map-plus-plus.block_magnet.none": "Seeking %s: none within %s blocks",
+  "message.map-plus-plus.block_magnet.forgot": "The compass lets go",
+  "message.map-plus-plus.block_magnet.alone": "Now seeking only %s",
+  "message.map-plus-plus.block_magnet.once_more": "%s (once more to seek only this)"
 }

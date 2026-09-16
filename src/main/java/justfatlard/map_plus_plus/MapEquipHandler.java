@@ -10,11 +10,15 @@ import justfatlard.pandorical.protocol.ComponentUpdate;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -125,6 +129,7 @@ public class MapEquipHandler {
 					lastMobData.remove(playerId);
 				}
 				hideNeedle(player);
+				hideRadar(player);
 				continue;
 			}
 
@@ -150,8 +155,10 @@ public class MapEquipHandler {
 				continue;
 			}
 
-			// A map is up, so the needle would be saying the same thing twice.
+			// A map is up, so the needle would be saying the same thing twice, and the map draws
+			// Mob Sight's dots itself.
 			hideNeedle(player);
+			hideRadar(player);
 
 			int mapIdValue = mapId.id();
 
@@ -229,18 +236,7 @@ public class MapEquipHandler {
 
 			// --- Mob Sight enchantment: scan nearby mobs and send as HUD prop ---
 			if (mapData != null) {
-				ItemEnchantments enchantments = compassStack.get(DataComponents.ENCHANTMENTS);
-				int mobSightLevel = 0;
-				if (enchantments != null) {
-					Holder<Enchantment> mobSightHolder = player.level()
-						.registryAccess()
-						.lookupOrThrow(Registries.ENCHANTMENT)
-						.get(Main.MOB_SIGHT)
-						.orElse(null);
-					if (mobSightHolder != null) {
-						mobSightLevel = enchantments.getLevel(mobSightHolder);
-					}
-				}
+				int mobSightLevel = mobSightLevel(player, compassStack);
 
 				int scaleFactor = 1 << mapData.scale;
 
@@ -292,6 +288,10 @@ public class MapEquipHandler {
 
 				if (!currentPlayers.isEmpty()) {
 					currentMobs = currentMobs.isEmpty() ? currentPlayers : currentPlayers + ";" + currentMobs;
+				}
+				if (BlockMagnet.seeks(player, compassStack)) {
+					String blocks = blockDots(player, mapData, scaleFactor);
+					if (!blocks.isEmpty()) currentMobs = currentMobs.isEmpty() ? blocks : currentMobs + ";" + blocks;
 				}
 
 				String lastMobs = lastMobData.getOrDefault(playerId, "");
@@ -371,7 +371,9 @@ public class MapEquipHandler {
 
 		StringBuilder sb = new StringBuilder();
 		for (ServerPlayer other : self.level().players()) {
-			if (other == self || other.isSpectator()) continue;
+			// Hidden the way the locator bar hides them: a spectator is not there, and somebody
+			// who drank invisibility meant it.
+			if (other == self || other.isSpectator() || other.isInvisible()) continue;
 			if (Math.abs(other.getX() - cx) > range || Math.abs(other.getZ() - cz) > range) continue;
 
 			int rawX = (int) Math.round((other.getX() - cx) / scaleFactor * 2);
@@ -381,7 +383,7 @@ public class MapEquipHandler {
 
 			if (sb.length() > 0) sb.append(';');
 			sb.append(decX).append(',').append(decZ).append(',')
-				.append(0xFF000000 | other.getTeamColor()).append(',')
+				.append(playerColor(other)).append(',')
 				.append("minecraft:player");
 		}
 		return sb.toString();
@@ -409,6 +411,7 @@ public class MapEquipHandler {
 			PandoricalApi.hud().hide(player, OVERLAY_ID);
 		}
 		hideNeedle(player);
+		hideRadar(player);
 	}
 
 	private static Map<String, String> buildProps(int mapId, boolean hasCompass,
@@ -470,8 +473,20 @@ public class MapEquipHandler {
 	private static void tickNeedleOnly(ServerPlayer player, MapPlusPlusInventory inv, boolean hasCompass) {
 		if (!hasCompass) {
 			hideNeedle(player);
+			hideRadar(player);
 			return;
 		}
+
+		// Mob Sight or a Block Magnet without a map: nothing to draw the dots on, so the compass
+		// draws its own ground. The needle's job goes with it, as the mark on the radar's rim.
+		boolean mobSight = mobSightLevel(player, inv.getCompassStack()) > 0;
+		boolean magnet = BlockMagnet.seeks(player, inv.getCompassStack());
+		if (mobSight || magnet) {
+			hideNeedle(player);
+			tickRadar(player, inv.getCompassStack(), mobSight, magnet);
+			return;
+		}
+		hideRadar(player);
 
 		double[] target = computeCompassTarget(player, inv.getCompassStack());
 		if (target == null) {
@@ -519,8 +534,10 @@ public class MapEquipHandler {
 		HudBuilder hud = new HudBuilder(NEEDLE_OVERLAY_ID)
 			.anchor(anchor)
 			.offset(padding, padding)
+			// Centred over its label, which is the wider of the two and so sets the overlay's
+			// width: left-aligned, the needle sat a label's width out of a right-hand corner.
 			.component(new ComponentBuilder(NEEDLE_COMPONENT_ID, ComponentType.SPRITE)
-				.bounds(0, 0, NEEDLE_SIZE, NEEDLE_SIZE)
+				.bounds(NEEDLE_SIZE, 0, NEEDLE_SIZE, NEEDLE_SIZE)
 				.prop(ComponentType.PROP_TEXTURE, NEEDLE_TEXTURE)
 				.prop(ComponentType.PROP_ROTATION, String.valueOf(bearing))
 				// Turning is continuous, so the default short blend is right here:
@@ -529,16 +546,209 @@ public class MapEquipHandler {
 			.component(new ComponentBuilder(NEEDLE_LABEL_ID, ComponentType.TEXT)
 				.bounds(0, NEEDLE_SIZE + 2, NEEDLE_SIZE * 3, 9)
 				.prop(ComponentType.PROP_TEXT, label)
+				.prop(ComponentType.PROP_ALIGN, "center")
 				.prop(ComponentType.PROP_SHADOW, "true")
 				.build());
 
 		PandoricalApi.hud().show(player, hud.build());
 	}
 
+	private static final String RADAR_OVERLAY_ID = "map-plus-plus:radar";
+	private static final String RADAR_COMPONENT_ID = "radar";
+	private static final String RADAR_LABEL_ID = "radar_label";
+	private static final int RADAR_SIZE = 64;
+	/** Blocks from the centre to the rim. Mob Sight has the one level, so the one range. */
+	private static final int RADAR_RANGE = 32;
+	/** How far above and below still counts as near: a cave under your feet is. */
+	private static final int RADAR_HEIGHT = 24;
+	/**
+	 * The list goes out five times a second. The dots move more smoothly than that, because the
+	 * client follows each entity it can see; this only decides how soon a newcomer appears.
+	 */
+	private static final int RADAR_EVERY_TICKS = 4;
+	private static final int RADAR_MOST = 64;
+
+	private record RadarState(String blips, String label, String targetX, String targetZ) {}
+
+	private static final Map<UUID, RadarState> radarShown = new HashMap<>();
+
+	private static int mobSightLevel(ServerPlayer player, ItemStack compass) {
+		ItemEnchantments enchantments = compass.get(DataComponents.ENCHANTMENTS);
+		if (enchantments == null) return 0;
+		return player.level().registryAccess()
+			.lookupOrThrow(Registries.ENCHANTMENT)
+			.get(Main.MOB_SIGHT)
+			.map(enchantments::getLevel)
+			.orElse(0);
+	}
+
+	private static void tickRadar(ServerPlayer player, ItemStack compass, boolean mobSight, boolean magnet) {
+		UUID playerId = player.getUUID();
+		RadarState last = radarShown.get(playerId);
+		if (last != null && player.tickCount % RADAR_EVERY_TICKS != 0) return;
+
+		double[] target = computeCompassTarget(player, compass);
+		String label = headingOf(player.getYRot());
+		String targetX = "", targetZ = "";
+		if (target != null) {
+			double dx = target[0] - player.getX(), dz = target[1] - player.getZ();
+			label += "  " + Math.round(Math.sqrt(dx * dx + dz * dz)) + "m";
+			targetX = String.valueOf(target[0]);
+			targetZ = String.valueOf(target[1]);
+		}
+
+		String blips = radarBlips(player, mobSight);
+		if (magnet) {
+			String blocks = blockBlips(player);
+			blips = blips.isEmpty() ? blocks : blocks.isEmpty() ? blips : blips + ";" + blocks;
+		}
+		RadarState now = new RadarState(blips, label, targetX, targetZ);
+		if (now.equals(last)) return;
+		radarShown.put(playerId, now);
+
+		Map<String, String> radarProps = Map.of(
+			ComponentType.PROP_RADAR_BLIPS, now.blips(),
+			ComponentType.PROP_RADAR_TARGET_X, now.targetX(),
+			ComponentType.PROP_RADAR_TARGET_Z, now.targetZ());
+
+		if (last == null) {
+			HudBuilder hud = new HudBuilder(RADAR_OVERLAY_ID)
+				.anchor(MinimapPrefs.anchor(player))
+				.offset(MinimapPrefs.padding(player), MinimapPrefs.padding(player))
+				.component(new ComponentBuilder(RADAR_COMPONENT_ID, ComponentType.RADAR)
+					.bounds(0, 0, RADAR_SIZE, RADAR_SIZE)
+					.prop(ComponentType.PROP_RADAR_RANGE, String.valueOf(RADAR_RANGE))
+					.prop(ComponentType.PROP_RADAR_BLIPS, now.blips())
+					.prop(ComponentType.PROP_RADAR_TARGET_X, now.targetX())
+					.prop(ComponentType.PROP_RADAR_TARGET_Z, now.targetZ())
+					.build())
+				// No wider than the disc: the overlay is as wide as its widest piece, and a label
+				// twice the radar's width held the radar a whole radar's width out of a right-hand
+				// corner.
+				.component(new ComponentBuilder(RADAR_LABEL_ID, ComponentType.TEXT)
+					.bounds(0, RADAR_SIZE + 2, RADAR_SIZE, 9)
+					.prop(ComponentType.PROP_TEXT, now.label())
+					.prop(ComponentType.PROP_ALIGN, "center")
+					.prop(ComponentType.PROP_SHADOW, "true")
+					.build());
+			PandoricalApi.hud().show(player, hud.build());
+		} else {
+			PandoricalApi.hud().update(player, RADAR_OVERLAY_ID, List.of(
+				new ComponentUpdate(RADAR_COMPONENT_ID, radarProps),
+				new ComponentUpdate(RADAR_LABEL_ID, Map.of(ComponentType.PROP_TEXT, now.label()))));
+		}
+	}
+
+	/**
+	 * Everything alive within range, nearest first: who it is, where it was, its colour and how
+	 * big it is. The minimap's own filters apply, so a player who hid the wildlife there has it
+	 * hidden here too. Without Mob Sight only other players, whom the minimap shows regardless.
+	 */
+	private static String radarBlips(ServerPlayer player, boolean mobs) {
+		boolean hostile = MinimapPrefs.hostile(player);
+		boolean passive = MinimapPrefs.passive(player);
+		double px = player.getX(), pz = player.getZ();
+		double reach = (double) RADAR_RANGE * RADAR_RANGE;
+
+		List<Entity> near = player.level().getEntities(player,
+			player.getBoundingBox().inflate(RADAR_RANGE, RADAR_HEIGHT, RADAR_RANGE),
+			e -> e instanceof LivingEntity living && living.isAlive() && !e.isSpectator()
+				&& !(e instanceof ArmorStand)
+				// A block wearing a mob as a costume is a block, not something walking about.
+				&& !e.entityTags().contains("block_tip:stand_in")
+				// Mob Sight sees through a potion; it does not see through a friend's.
+				&& !(e instanceof Player && e.isInvisible()));
+		near.removeIf(e -> {
+			double dx = e.getX() - px, dz = e.getZ() - pz;
+			return dx * dx + dz * dz > reach;
+		});
+		near.sort(Comparator.comparingDouble(e -> {
+			double dx = e.getX() - px, dz = e.getZ() - pz;
+			return dx * dx + dz * dz;
+		}));
+
+		StringBuilder out = new StringBuilder();
+		int count = 0;
+		for (Entity e : near) {
+			boolean person = e instanceof ServerPlayer;
+			int color = person ? playerColor((ServerPlayer) e) : mobColor((LivingEntity) e);
+			if (!person && !mobs) continue;
+			// People are never wildlife, whatever colour their dot happens to be.
+			if (!person && !hostile && color == 0xFFFF3333) continue;
+			if (!person && !passive && (color == 0xFF33FF33 || color == 0xFFFFAA00)) continue;
+			if (count++ >= RADAR_MOST) break;
+			if (out.length() > 0) out.append(';');
+			out.append(e.getId()).append(',')
+				.append(String.format(java.util.Locale.ROOT, "%.1f,%.1f,%.1f", e.getX(), e.getY(), e.getZ()))
+				.append(',').append(color).append(',').append(sizeOf(e));
+			if (person) out.append(",p");
+		}
+		return out.toString();
+	}
+
+	/**
+	 * The blocks the slotted Block Magnet feels, as radar blips, each kind in its own colour. Not entities, so each goes by an
+	 * id no entity has, and the radar keeps it where it was put rather than following anything.
+	 */
+	private static String blockBlips(ServerPlayer player) {
+		StringBuilder out = new StringBuilder();
+		for (BlockMagnet.Sighting seen : BlockMagnet.seenBy(player)) {
+			BlockPos block = seen.pos();
+			if (out.length() > 0) out.append(';');
+			out.append(-1).append(',')
+				.append(block.getX() + 0.5).append(',').append(block.getY() + 0.5).append(',').append(block.getZ() + 0.5)
+				.append(',').append(BlockMagnet.colourOf(seen.kind())).append(',').append(1);
+		}
+		return out.toString();
+	}
+
+	/** The same blocks as minimap dots, where they fall on the map. */
+	private static String blockDots(ServerPlayer player, MapItemSavedData map, int scaleFactor) {
+		StringBuilder out = new StringBuilder();
+		int half = 64 * scaleFactor;
+		for (BlockMagnet.Sighting seen : BlockMagnet.seenBy(player)) {
+			BlockPos block = seen.pos();
+			double dx = block.getX() + 0.5 - map.centerX, dz = block.getZ() + 0.5 - map.centerZ;
+			if (Math.abs(dx) > half || Math.abs(dz) > half) continue;
+			byte decX = (byte) Math.max(-127, Math.min(127, Math.round(dx / scaleFactor * 2)));
+			byte decZ = (byte) Math.max(-127, Math.min(127, Math.round(dz / scaleFactor * 2)));
+			if (out.length() > 0) out.append(';');
+			out.append(decX).append(',').append(decZ).append(',').append(BlockMagnet.colourOf(seen.kind())).append(',').append(Main.MOD_ID).append(":block");
+		}
+		return out.toString();
+	}
+
+	/** 1 to 3, by how much of the world the thing takes up: a chicken, a cow, a ravager. */
+	private static int sizeOf(Entity e) {
+		float bulk = e.getBbWidth() * e.getBbHeight();
+		if (bulk < 0.5F) return 1;
+		if (bulk < 2.5F) return 2;
+		return 3;
+	}
+
+	private static void hideRadar(ServerPlayer player) {
+		if (radarShown.remove(player.getUUID()) != null) {
+			PandoricalApi.hud().hide(player, RADAR_OVERLAY_ID);
+		}
+	}
+
 	private static void hideNeedle(ServerPlayer player) {
 		if (needleBearing.remove(player.getUUID()) != null) {
 			PandoricalApi.hud().hide(player, NEEDLE_OVERLAY_ID);
 		}
+	}
+
+	/**
+	 * The colour this player's dot has on everybody's locator bar, so the map and the radar name
+	 * them the same way the experience bar already does. Worked out the way the game works it
+	 * out: a colour set with /waypoint, then their team's, and failing both the one the client
+	 * derives from their UUID.
+	 */
+	private static int playerColor(ServerPlayer player) {
+		return player.waypointIcon().cloneAndAssignStyle(player).color
+			.orElseGet(() -> net.minecraft.util.ARGB.setBrightness(
+				net.minecraft.util.ARGB.color(255, player.getUUID().hashCode()), 0.9F))
+			| 0xFF000000;
 	}
 
 	/** Returns ARGB color for a mob dot based on its type. */
@@ -553,5 +763,6 @@ public class MapEquipHandler {
 		playerStates.remove(playerId);
 		lastMobData.remove(playerId);
 		needleBearing.remove(playerId);
+		radarShown.remove(playerId);
 	}
 }

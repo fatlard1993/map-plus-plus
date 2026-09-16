@@ -35,6 +35,11 @@ public class Main implements ModInitializer {
 		Identifier.fromNamespaceAndPath(MOD_ID, "scroll")
 	);
 
+	public static final ResourceKey<Enchantment> BLOCK_MAGNET = ResourceKey.create(
+		Registries.ENCHANTMENT,
+		Identifier.fromNamespaceAndPath(MOD_ID, "block_magnet")
+	);
+
 	/** Namespace used when registering our slot group with Pandorical. */
 	public static final Identifier SLOTS_NAMESPACE = Identifier.fromNamespaceAndPath(MOD_ID, "slots");
 
@@ -106,6 +111,8 @@ public class Main implements ModInitializer {
 				.copyFrom(((MapPlusPlusPlayerAccess) oldPlayer).mapPlusPlus$getInventory()));
 
 		ServerTickEvents.END_SERVER_TICK.register(MapEquipHandler::tick);
+		MapRelief.register();
+		BlockMagnet.register();
 
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			MapEquipHandler.onPlayerDisconnect(handler.getPlayer().getUUID());

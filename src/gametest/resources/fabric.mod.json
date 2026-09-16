@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "map-plus-plus-gametest",
+	"version": "1.0.0",
+	"name": "Map++ game tests",
+	"description": "What a map in the slot hands the minimap.",
+	"license": "MIT",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"justfatlard.map_plus_plus.gametest.SlottedMapMarkers"
+		]
+	},
+	"depends": {
+		"map-plus-plus": "*",
+		"fabric-client-gametest-api-v1": "*"
+	}
+}
