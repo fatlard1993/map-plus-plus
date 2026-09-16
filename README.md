@@ -2,6 +2,10 @@
 
 A Minecraft Fabric mod. Maps and compasses get slots of their own, and an equipped map becomes a minimap you can actually read.
 
+## Screenshots
+
+![A map framed on the floor, standing up as the land it shows: a river through low hills, cut through down the sides](relief.png)
+
 ## What This Mod Does
 
 A map is a thing you hold, which means it is a thing you are not holding a sword with. Carrying one costs a hotbar slot and every glance at it costs the use of your hand, so in practice nobody navigates by map: they make one, look at it once, and put it in a chest.

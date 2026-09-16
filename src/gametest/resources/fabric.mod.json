@@ -8,7 +8,8 @@
 	"environment": "*",
 	"entrypoints": {
 		"fabric-client-gametest": [
-			"justfatlard.map_plus_plus.gametest.SlottedMapMarkers"
+			"justfatlard.map_plus_plus.gametest.SlottedMapMarkers",
+			"justfatlard.map_plus_plus.gametest.Showcase"
 		]
 	},
 	"depends": {
