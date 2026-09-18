@@ -1,7 +1,8 @@
 {
-  "replace": false,
-  "values": [
-    "map-plus-plus:scroll",
-    "map-plus-plus:block_magnet"
-  ]
+	"replace": false,
+	"values": [
+		"map-plus-plus:scroll",
+		"map-plus-plus:block_magnet",
+		"map-plus-plus:mob_sight"
+	]
 }

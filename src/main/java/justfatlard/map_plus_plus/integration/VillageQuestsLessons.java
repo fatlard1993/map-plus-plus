@@ -10,6 +10,7 @@ import justfatlard.village_quests.api.LessonApi;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -95,6 +96,22 @@ public final class VillageQuestsLessons {
 					return false;
 				}
 
+				/**
+				 * The fifth lesson hands Mob Sight over rather than asking for it.
+				 *
+				 * <p>It used to want a compass that already carried the enchantment, and told the
+				 * player to get one by putting a compass on an enchanting table - which has never
+				 * worked, because Mob Sight is not a table enchantment and for a long while was in
+				 * no obtainment tag at all. The cartographer gives it, which is also the better
+				 * lesson: they are showing you a thing nobody would think to try.
+				 */
+				@Override
+				public void onLesson(ServerPlayer player, ServerLevel world, int beat, LessonApi.Teacher teacher) {
+					if (beat != MOB_SIGHT_LESSON) return;
+					ItemStack book = mobSightBook(world);
+					if (book != null) teacher.give(book);
+				}
+
 				@Override
 				public void onGraduate(ServerPlayer player, ServerLevel world, LessonApi.Teacher teacher) {
 					teacher.give(new ItemStack(Items.MAP, BLANK_MAPS_AT_THE_END));
@@ -105,13 +122,22 @@ public final class VillageQuestsLessons {
 			}));
 	}
 
-	private static boolean hasMobSight(ItemStack stack) {
-		ItemEnchantments enchantments = stack.get(DataComponents.ENCHANTMENTS);
-		if (enchantments == null) return false;
-		for (Holder<Enchantment> held : enchantments.keySet()) {
-			if (held.is(Main.MOB_SIGHT)) return true;
-		}
-		return false;
+	/** Which lesson puts the book on the counter; the lessons are counted from one. */
+	private static final int MOB_SIGHT_LESSON = 5;
+
+	/** Mob Sight on a book, for the cartographer to set down beside your compass. */
+	private static ItemStack mobSightBook(ServerLevel world) {
+		return world.registryAccess()
+			.lookup(Registries.ENCHANTMENT)
+			.flatMap(registry -> registry.get(Main.MOB_SIGHT))
+			.map(enchantment -> {
+				ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
+				ItemEnchantments.Mutable stored = new ItemEnchantments.Mutable(ItemEnchantments.EMPTY);
+				stored.set(enchantment, 1);
+				book.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable());
+				return book;
+			})
+			.orElse(null);
 	}
 
 	/** Bound to a lodestone; a Block Magnet points the same way at no lodestone at all. */
@@ -189,15 +215,17 @@ public final class VillageQuestsLessons {
 				Items.COMPASS, stack -> stack.is(Items.COMPASS) && isBoundCompass(stack), 8),
 
 			new LessonApi.Lesson(
-				"Something you would never think to try. Put a compass on an enchanting table. No. I am serious. Sit with that a moment. "
-					+ "Nobody puts a compass on a table, so nobody ever finds out. Bring me one that took, and you will see why I mention it.",
-				"show {name} a compass carrying mob sight",
+				"Something you would never think to try. Bring me a compass - a plain one, nothing on it - and leave it with me a "
+					+ "moment. Nobody does anything with a compass but follow it, so nobody ever finds out what else one will hold.",
+				"bring {name} a plain compass",
 				"Blue is people. Red is what wants you dead. Green eats grass.",
-				"*grins* There it is. Mob sight. It reads what is moving near you and puts them on the map as coloured dots. Blue for "
-					+ "villagers, red for the hostile ones, green for the animals, orange for whatever fits none of those.",
-				"A book off an anvil does it too, if you have been hoarding the odd ones nobody reads. And it works from the slot, which is "
-					+ "the point: you are not holding it, you are wearing it, and the corner tells you what is behind the trees.",
-				Items.COMPASS, stack -> stack.is(Items.COMPASS) && hasMobSight(stack), 10),
+				"*grins, and sets a book down on the counter* There it is. Mob sight. Put it on at an anvil and the compass reads what "
+					+ "is moving near you, and puts them on the map as coloured dots. Blue for villagers, red for the hostile ones, "
+					+ "green for the animals, orange for whatever fits none of those.",
+				"You will not find that one on a table. It turns up in the odd book nobody reads, and a librarian will part with one if "
+					+ "you ask right. And it works from the slot, which is the point: you are not holding it, you are wearing it, and "
+					+ "the corner tells you what is behind the trees.",
+				Items.COMPASS, stack -> stack.is(Items.COMPASS), 10),
 
 			new LessonApi.Lesson(
 				"Last one, and it is a long walk. A recovery compass. Eight echo shards round an ordinary compass, and the shards are only "
