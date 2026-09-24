@@ -4,16 +4,25 @@
 	],
 	"versions": {
 		"1.0.2": [
-			"Mob Sight can actually be got now: it sits in loot, trades and treasure alongside Block Magnet, and the cartographer sets the book down on the counter rather than telling you to try an enchanting table, which never worked.",
-			"Scroll is a treasure enchantment too, which is what it has always been in practice. All three are book enchantments, and the readme says so for each."
+			"Mob Sight can actually be got: it sits in loot, trades and treasure alongside Block Magnet.",
+			"The cartographer sets the book on the counter rather than pointing at an enchanting table.",
+			"Scroll is a treasure enchantment too, which is what it has always been in practice.",
+			"All three are book enchantments, and the readme says so for each."
 		],
 		"1.0.1": [
-			"Sneak and use a framed map on the floor and it stands up as a miniature of the ground it covers, block by block to the map's own scale, biome tints and all. Maps framed side by side raise as one table when redstone reaches any of them.",
-			"Block Magnet, a compass enchantment to level three: use it on a block and the compass points at the nearest other one within thirty-two, one more kind of block per level."
+			"Sneak and use a framed map on the floor and it stands up as a miniature of the ground.",
+			"Block by block to the map's own scale, biome tints and all.",
+			"Maps framed side by side raise as one table when redstone reaches any of them.",
+			"Block Magnet, a compass enchantment to level three.",
+			"Use it on a block and the compass points at the nearest other one within thirty-two.",
+			"One more kind of block per level."
 		],
 		"1.0.0": [
-			"A map slot and a compass slot on the inventory screen, kept across sessions and across deaths, and a minimap drawn in a screen corner from whatever map is in the slot.",
-			"A compass on its own reads a bearing and a distance, other players show as dots in their own colour, and a scroll map follows its owner instead of remembering one place."
+			"A map slot and a compass slot on the inventory screen, kept across sessions and deaths.",
+			"A minimap in a screen corner, drawn from whatever map is in the slot.",
+			"A compass on its own reads a bearing and a distance.",
+			"Other players show as dots in their own colour.",
+			"A scroll map follows its owner instead of remembering one place."
 		]
 	}
 }
