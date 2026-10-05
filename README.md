@@ -97,17 +97,9 @@ Map++ needs Pandorical 1.3.9 or later, installed on the server alongside it. **P
 
 ## Settings
 
-Every minimap setting is the player's own, on the Map++ page of Pandorical's mod menu: which
-corner it sits in (top right by default), its size (50 to 200 pixels, default 100) and its
-padding in from the screen edge (0 to 20 pixels, default 5), its zoom (5 to 40 tenths, default
-10, which shows the whole map; more shows less of it, closer), whether the
-facing-and-coordinates line shows under it, and whether hostile and other mobs are drawn on it.
-Those last three are on until turned off. The needle and the radar sit in the same corner with
-the same padding, and the two mob switches apply to the radar too. Each player's choices are
-kept by Pandorical on the server, so they follow the player and never touch anyone else's map.
+Every minimap setting is the player's own, on the Map++ page of Pandorical's mod menu: which corner it sits in (top right by default), its size (50 to 200 pixels, default 100) and its padding in from the screen edge (0 to 20 pixels, default 5), its zoom (5 to 40 tenths, default 10, which shows the whole map; more shows less of it, closer), whether the facing-and-coordinates line shows under it, and whether hostile and other mobs are drawn on it. Those last three are on until turned off. The needle and the radar sit in the same corner with the same padding, and the two mob switches apply to the radar too. Each player's choices are kept by Pandorical on the server, so they follow the player and never touch anyone else's map.
 
-`config/map-plus-plus.properties`, generated on first run, holds what a player gets for the
-corner, size and padding before they have chosen:
+`config/map-plus-plus.properties`, generated on first run, holds what a player gets for the corner, size and padding before they have chosen:
 
 | Key | Default | |
 |---|---|---|
