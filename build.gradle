@@ -49,6 +49,7 @@ dependencies {
 tasks.matching { it.name == "runClientGameTest" }.configureEach {
 	// Silent: OpenAL's null device, the same as gametest.gradle gives the rest of the suite.
 	environment("ALSOFT_DRIVERS", "null")
+	systemProperty("pandorical.pictures", project.hasProperty("pictures"))
 	args("--width", "1920", "--height", "1080")
 }
 
@@ -109,3 +110,6 @@ jar {
 		rename { "README_${project.base.archivesName.get()}.md" }
 	}
 }
+
+// Pandorical's test kit, Pictures included.
+apply from: file("../pandorical/testsupport.gradle")

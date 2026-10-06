@@ -54,8 +54,8 @@ public final class Showcase implements FabricClientGameTest {
 			TestServerConnection connection = world.getConnection();
 			connection.waitForChunksRender();
 			server.waitFor(s -> PandoricalApi.isAvailable(connection.getServerPlayer()));
-			server.runCommand("gamerule doDaylightCycle false");
-			server.runCommand("gamerule doWeatherCycle false");
+			server.runCommand("gamerule advance_time false");
+			server.runCommand("gamerule advance_weather false");
 			server.runCommand("weather clear");
 			server.runCommand("time set noon");
 
