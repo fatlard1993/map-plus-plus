@@ -3,6 +3,9 @@
 		"Maps and compasses get slots of their own on the inventory screen, and a map sitting in its slot draws itself as a minimap in the corner while your hands stay free."
 	],
 	"versions": {
+		"1.0.3": [
+			"Release notes rewritten to read plainly; nothing in play changes."
+		],
 		"1.0.2": [
 			"Mob Sight can actually be got: it sits in loot, trades and treasure alongside Block Magnet.",
 			"The cartographer sets the book on the counter rather than pointing at an enchanting table.",
