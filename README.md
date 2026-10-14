@@ -80,7 +80,7 @@ It is a treasure enchantment, like Mending: found on books in loot and sold by l
 
 **Mob Sight**, for compasses, a treasure enchantment like the other two: loot and librarians, then the book onto a compass at an anvil. With it in the compass slot and a map in the other, the whole area the map covers is scanned each tick and the 50 mobs nearest you are shown as coloured dots on the minimap: blue for villagers, red for hostiles, green for passive animals, orange for everything else. The settings can hide the red dots, and the green and orange ones; villager dots always show.
 
-With no map in the slot there is nothing to draw the dots on, so the compass draws its own ground: a radar 64 pixels across in the minimap's corner, 32 blocks to the rim, turned so that straight up is the way you are facing. Up to 64 of whatever is nearest shows on it, in the same colours and under the same settings, each dot sized by how big the mob is and dimmed when it is well above or below you; other players show among them as diamonds. A gold needle points at whatever the compass points at, its head on the rim when that is out of range, and under the radar are the way you are facing and the distance. It takes the place of the needle a plain compass draws, and needs Pandorical 1.3.9.
+With no map in the slot there is nothing to draw the dots on, so the compass draws its own ground: a radar 64 pixels across in the minimap's corner, 32 blocks to the rim, turned so that straight up is the way you are facing. Up to 64 of whatever is nearest shows on it, in the same colours and under the same settings, each dot sized by how big the mob is and dimmed when it is well above or below you; other players show among them as diamonds. A gold needle points at whatever the compass points at, its head on the rim when that is out of range, and under the radar are the way you are facing and the distance. It takes the place of the needle a plain compass draws, and needs Pandorical 15 or later.
 
 ## Details Worth Knowing
 
@@ -93,7 +93,7 @@ With no map in the slot there is nothing to draw the dots on, so the compass dra
 
 Map++ is one of the most Pandorical-dependent mods in this suite. The slots are registered through Pandorical's player-inventory API, which patches the vanilla inventory screen to add and persist them; the minimap, the needle and the radar are Pandorical HUD overlays, pushed from the server as you move and as the map data changes.
 
-Map++ needs Pandorical 1.3.9 or later, installed on the server alongside it. **Pandorical must be installed client-side as well for any of this to appear.** Without it there are no extra slots and no minimap. No Map++ jar is needed on a client.
+Map++ needs Pandorical 15 or later, installed on the server alongside it. **Pandorical must be installed client-side as well for any of this to appear.** Without it there are no extra slots and no minimap. No Map++ jar is needed on a client.
 
 ## Settings
 
