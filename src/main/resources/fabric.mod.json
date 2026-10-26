@@ -33,5 +33,12 @@
 		"village-quests-justfatlard": "*",
 		"dead-heads": "*",
 		"minedew-fishing": "*"
+	},
+	"custom": {
+		"modmenu": {
+			"links": {
+				"modmenu.donate": "https://github.com/sponsors/fatlard1993"
+			}
+		}
 	}
 }
