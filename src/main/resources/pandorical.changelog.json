@@ -3,6 +3,9 @@
 		"Maps and compasses get slots of their own on the inventory screen, and a map sitting in its slot draws itself as a minimap in the corner while your hands stay free."
 	],
 	"versions": {
+		"1.0.4": [
+			"Mod Menu's Donate button leads to sponsoring the author on GitHub. Nothing in play changes."
+		],
 		"1.0.3": [
 			"Release notes rewritten to read plainly; nothing in play changes."
 		],
