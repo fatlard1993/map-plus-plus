@@ -1,0 +1,133 @@
+{
+  "demo": {
+    "name": "Map++",
+    "icon": "minecraft:filled_map",
+    "about": [
+      "Maps and compasses get slots of their own on the inventory screen, and a map in its slot becomes a live minimap in the corner.",
+      "Use a blank map, then put it and the Mob Sight compass in their slots and watch the dots. Sneak and use the Block Magnet compass on an ore to hunt the next one, and frame a map on the floor, then sneak and use it to stand the land up."
+    ]
+  },
+  "pvp_preset": 1,
+  "needs": [
+    "map-plus-plus"
+  ],
+  "preset": {
+    "name": "Map++",
+    "icon": "minecraft:filled_map",
+    "pvp": false,
+    "game_mode": "survival",
+    "entry_kit": [
+      {
+        "slot": 0,
+        "item": {
+          "id": "minecraft:map",
+          "count": 4
+        }
+      },
+      {
+        "slot": 1,
+        "item": {
+          "id": "minecraft:compass",
+          "count": 1,
+          "components": {
+            "minecraft:enchantments": {
+              "map-plus-plus:mob_sight": 1
+            }
+          }
+        }
+      },
+      {
+        "slot": 2,
+        "item": {
+          "id": "minecraft:compass",
+          "count": 1,
+          "components": {
+            "minecraft:enchantments": {
+              "map-plus-plus:block_magnet": 3
+            }
+          }
+        }
+      },
+      {
+        "slot": 3,
+        "item": {
+          "id": "minecraft:item_frame",
+          "count": 8
+        }
+      },
+      {
+        "slot": 4,
+        "item": {
+          "id": "minecraft:iron_pickaxe",
+          "count": 1
+        }
+      },
+      {
+        "slot": 5,
+        "item": {
+          "id": "minecraft:iron_sword",
+          "count": 1
+        }
+      },
+      {
+        "slot": 6,
+        "item": {
+          "id": "minecraft:cartography_table",
+          "count": 1
+        }
+      },
+      {
+        "slot": 7,
+        "item": {
+          "id": "minecraft:cobblestone",
+          "count": 64
+        }
+      },
+      {
+        "slot": 8,
+        "item": {
+          "id": "minecraft:bread",
+          "count": 8
+        }
+      },
+      {
+        "slot": 9,
+        "item": {
+          "id": "minecraft:paper",
+          "count": 16
+        }
+      },
+      {
+        "slot": 10,
+        "item": {
+          "id": "minecraft:compass",
+          "count": 2
+        }
+      },
+      {
+        "slot": 38,
+        "item": {
+          "id": "minecraft:iron_chestplate",
+          "count": 1
+        }
+      }
+    ],
+    "respawn_kit": "entry",
+    "goal": "time",
+    "mobs": "always",
+    "mob_rarity": "normal",
+    "mob_default": "off",
+    "mob_levels": {
+      "minecraft:zombie": "normal",
+      "minecraft:spider": "normal",
+      "minecraft:cow": "normal",
+      "minecraft:sheep": "normal"
+    },
+    "life": 15,
+    "size": 4,
+    "world": "overworld",
+    "shape": "natural",
+    "biome": "minecraft:windswept_hills",
+    "weather": "clear"
+  }
+}
