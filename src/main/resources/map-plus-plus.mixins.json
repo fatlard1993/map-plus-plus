@@ -5,6 +5,7 @@
 	"mixins": [
 		"ChunkMapAccessor",
 		"CompassItemMixin",
+		"MapItemMixin",
 		"PlayerMixin",
 		"PlayerIsHoldingMixin",
 		"CartographyTableMenuMixin",

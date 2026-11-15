@@ -215,7 +215,7 @@ public class MapEquipHandler {
 				// The terrain scan: this is what turns fog into ground as somebody walks.
 				Item item = mapStack.getItem();
 				if (item instanceof MapItem mapItem) {
-					mapItem.update(player.level(), player, mapData);
+					MapSlices.drawing(mapId, () -> mapItem.update(player.level(), player, mapData));
 				}
 
 				// And the delivery, which vanilla will not do for a map kept here.

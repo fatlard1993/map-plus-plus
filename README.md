@@ -32,6 +32,12 @@ The compass's own needle is drawn small in the bottom-left corner of the map, so
 
 **The fishing minigame gets the screen.** While Minedew Fishing's minigame is up, the minimap, the needle and the radar all stand aside, and come back once it is over.
 
+## Maps Under a Roof
+
+Vanilla draws a map in the Nether, or any other dimension with a ceiling, as brown noise: looking down from the top meets only the roof. Here such a map is drawn as a slice at the height of whoever holds it. Open floor below head height is drawn as the ground it is, shaded for its slopes, lava as lava; rock at head height is drawn as the walls around it. Walk a tunnel and the map shows the tunnel. Climb above the roof and the roof is drawn instead.
+
+The slice is taken where the holder stands, so one map filled in at two heights shows each part as it was seen. Each pixel's slice height is kept, which is what lets a framed Nether map stand up; see [Maps on the Floor](#maps-on-the-floor).
+
 ## The Cartography Table
 
 The table already copies a map onto a blank map and widens one with paper. It now does the same two things for compasses.
@@ -51,7 +57,7 @@ A map in an item frame on the floor can stand up as the land it shows. Sneak and
 - **What the map sees, it shows.** Blocks a map looks through, glass among them, are left out; so is the grass and fern carpeting the ground, which at this size would only be a speckle over every field.
 - **Markers float over the ground they mark.** Banners and the compass X's from the cartography table sit just above the land beneath them rather than inside a hill.
 - **The frame remembers, not the map.** The setting survives a restart, and swapping the map in that frame stands the new one up too.
-- **A map drawn under a roof rises flat.** Vanilla draws the Nether, and any other dimension with a ceiling, as noise rather than ground, so there is no land to stand up: what the map has drawn rises as a flat slab of netherrack instead.
+- **A map drawn under a roof stands up its slice.** Each part of a Nether map stands up as the ground it showed, read down from the height it was sliced at: the room you walked through with its walls, the lava sea below the ledge. Parts drawn before this version, which kept no slice heights, rise as a flat slab of netherrack until they are drawn again.
 - **Far-off maps work.** The ground is read from the saved world without loading it, so a map of somewhere a thousand blocks away stands up on your floor at home.
 - **Detail where you can see it.** Up close every block is drawn; from across the room the model is drawn coarser, which at that distance looks the same and costs a fraction as much.
 

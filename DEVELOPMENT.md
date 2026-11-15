@@ -18,6 +18,8 @@ For what the mod is and how it plays, see [README.md](README.md).
 | `inventory/CompassSlot.java` | What counts as a compass |
 | `BlockMagnet.java` | Block Magnet: taking up a block, and pointing the compass at the nearest other one |
 | `mixin/CompassItemMixin.java` | Giving a Block Magnet its turn when a compass is used on a block |
+| `mixin/MapItemMixin.java` | Drawing a map under a roof as a slice at its holder's height, where vanilla paints noise |
+| `MapSlices.java` | The height each pixel of a map under a roof was sliced at, saved with the world, for the relief to read down from |
 | `CompassTarget.java` | Where a compass points, as a place: the one answer the minimap and the table share |
 | `CompassCartography.java` | What the cartography table makes of a compass: a copy, or a mark on a map |
 | `MapRelief.java` | Turning a floor-framed map to relief and back, and keeping each such frame's ground current |

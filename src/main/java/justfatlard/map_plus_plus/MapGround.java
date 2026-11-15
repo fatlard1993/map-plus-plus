@@ -78,6 +78,7 @@ final class MapGround {
 	private static final Map<Integer, MapGround> known = new HashMap<>();
 
 	private final MinecraftServer server;
+	private final MapId id;
 	private final ResourceKey<Level> dimension;
 	private final int centerX, centerZ, scale;
 	/** The highest block in each pixel's column, or {@link #UNKNOWN}. */
@@ -85,6 +86,8 @@ final class MapGround {
 	private final Column[] columns = new Column[SIDE * SIDE];
 	/** The map's colours when its ground was last read: which pixels there are, and which have changed. */
 	private byte[] seen;
+	/** Under a roof, the height each pixel was sliced at when its ground was last read. */
+	private short[] seenCuts;
 	/** Where the stacks stand from, in blocks; {@link #UNKNOWN} before they have been read. */
 	private int floor = UNKNOWN;
 	private MapTerrain terrain;
@@ -96,8 +99,9 @@ final class MapGround {
 	/** One pixel's stack, bottom up, as runs, and the biome at its top. */
 	private record Column(BlockState[] blocks, int[] counts, Identifier biome) {}
 
-	private MapGround(MinecraftServer server, MapItemSavedData data) {
+	private MapGround(MinecraftServer server, MapId id, MapItemSavedData data) {
 		this.server = server;
+		this.id = id;
 		this.dimension = data.dimension;
 		this.centerX = data.centerX;
 		this.centerZ = data.centerZ;
@@ -109,7 +113,7 @@ final class MapGround {
 	 * comes back until the ground changes, so a caller can tell a new one by identity.
 	 */
 	static MapTerrain reliefFor(MinecraftServer server, MapId id, MapItemSavedData data) {
-		MapGround ground = known.computeIfAbsent(id.id(), unused -> new MapGround(server, data));
+		MapGround ground = known.computeIfAbsent(id.id(), unused -> new MapGround(server, id, data));
 		ground.lastAsked = server.getTickCount();
 		if (ground.pass == null) ground.reread(data.colors);
 		return ground.terrain;
@@ -161,26 +165,19 @@ final class MapGround {
 		ServerLevel level = server.getLevel(dimension);
 		if (level == null) return;
 		byte[] now = colours.clone();
+		short[] cuts = level.dimensionType().hasCeiling() ? MapSlices.get(server).of(id) : null;
+		short[] cutsNow = cuts == null ? null : cuts.clone();
 		boolean[] redo = new boolean[SIDE * SIDE];
 		boolean any = false;
 		for (int i = 0; i < redo.length; i++) {
-			redo[i] = drawn(now[i]) && (seen == null || seen[i] != now[i]);
+			boolean recut = cutsNow != null && (seenCuts == null || seenCuts[i] != cutsNow[i]);
+			redo[i] = drawn(now[i]) && (seen == null || seen[i] != now[i] || recut);
 			any |= redo[i];
 		}
 		seen = now;
+		seenCuts = cutsNow;
 		if (!any) {
 			if (terrain == null) assemble();
-			return;
-		}
-		// Vanilla paints a map drawn under a roof as noise, not ground, so there is no ground to stand up
-		if (level.dimensionType().hasCeiling()) {
-			floor = 0;
-			for (int i = 0; i < redo.length; i++) {
-				if (!redo[i]) continue;
-				surface[i] = FLOOR - 1;
-				columns[i] = new Column(new BlockState[] {Blocks.NETHERRACK.defaultBlockState()}, new int[] {FLOOR}, null);
-			}
-			assemble();
 			return;
 		}
 		pass = new Surfaces(level, redo);
@@ -291,6 +288,31 @@ final class MapGround {
 				SharedConstants.getCurrentVersion().dataVersion().version());
 		}
 
+		/** A chunk's saved sections by height, off the server thread. */
+		Map<Integer, LevelChunkSection> sections(CompoundTag tag) {
+			SerializableChunkData data = SerializableChunkData.parse(level, level.palettedContainerFactory(), tag);
+			Map<Integer, LevelChunkSection> sections = new HashMap<>();
+			for (SerializableChunkData.SectionData section : data.sectionData()) {
+				if (section.chunkSection() != null) sections.put(section.y(), section.chunkSection());
+			}
+			return sections;
+		}
+
+		static BlockState blockIn(Map<Integer, LevelChunkSection> sections, int x, int y, int z) {
+			LevelChunkSection section = sections.get(y >> 4);
+			return section == null ? Blocks.AIR.defaultBlockState() : section.getBlockState(x & 15, y & 15, z & 15);
+		}
+
+		/**
+		 * Whether a block stands in the relief: one the map would see, less the grass and ferns
+		 * that carpet the ground, which at this size are a speckle over every field rather than
+		 * anything the eye can pick out. Flowers and crops are kept; they read as colour.
+		 */
+		boolean stands(BlockState block, BlockPos pos) {
+			if (block.isAir() || block.getMapColor(level, pos) == MapColor.NONE) return false;
+			return !block.canBeReplaced() || !block.getFluidState().isEmpty() || block.is(Blocks.SNOW);
+		}
+
 		/** Off the server thread: turn a chunk's saved form into what {@link #fromDisk} reads. */
 		abstract Object prepare(CompoundTag tag);
 
@@ -301,15 +323,32 @@ final class MapGround {
 		abstract void finish();
 	}
 
-	/** Where the top of each column is, which is what the floor waits on. */
+	/**
+	 * Where the top of each column is, which is what the floor waits on. Under a roof that is the
+	 * first ground down from where the pixel was sliced, as the map found it; a pixel drawn
+	 * before slices were kept has none, and sits on the floor.
+	 */
 	private final class Surfaces extends Pass {
+		private final BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+		private final boolean underRoof;
+
 		Surfaces(ServerLevel level, boolean[] redo) {
 			super(level, redo);
+			underRoof = level.dimensionType().hasCeiling();
 			for (int i = 0; i < redo.length; i++) if (redo[i]) surface[i] = UNKNOWN;
+		}
+
+		private int groundUnder(int pixel, IntFunction<BlockState> blockAt) {
+			if (seenCuts == null || seenCuts[pixel] == MapSlices.NONE) return UNKNOWN;
+			for (int y = Math.min(seenCuts[pixel], level.getMaxY()); y >= level.getMinY(); y--) {
+				if (stands(blockAt.apply(y), at.set(columnX(pixel), y, columnZ(pixel)))) return y;
+			}
+			return UNKNOWN;
 		}
 
 		@Override
 		Object prepare(CompoundTag tag) {
+			if (underRoof) return sections(tag);
 			Optional<long[]> packed = tag.getCompound("Heightmaps")
 				.flatMap(h -> h.getLongArray(Heightmap.Types.WORLD_SURFACE.getSerializationKey()));
 			if (packed.isEmpty()) return null;
@@ -322,11 +361,23 @@ final class MapGround {
 
 		@Override
 		void fromMemory(int pixel, ChunkAccess chunk) {
+			if (underRoof) {
+				BlockPos.MutableBlockPos block = new BlockPos.MutableBlockPos();
+				surface[pixel] = groundUnder(pixel, y -> chunk.getBlockState(block.set(columnX(pixel), y, columnZ(pixel))));
+				return;
+			}
 			surface[pixel] = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, columnX(pixel), columnZ(pixel));
 		}
 
 		@Override
+		@SuppressWarnings("unchecked")
 		void fromDisk(int pixel, Object prepared) {
+			if (underRoof) {
+				if (prepared instanceof Map<?, ?> sections) {
+					surface[pixel] = groundUnder(pixel, y -> blockIn((Map<Integer, LevelChunkSection>) sections, columnX(pixel), y, columnZ(pixel)));
+				}
+				return;
+			}
 			if (!(prepared instanceof SimpleBitStorage heights)) return;
 			surface[pixel] = heights.get((columnX(pixel) & 15) + (columnZ(pixel) & 15) * 16) + level.getMinY() - 1;
 		}
@@ -337,6 +388,8 @@ final class MapGround {
 			for (int i = 0; i < surface.length; i++) {
 				if (drawn(seen[i]) && surface[i] != UNKNOWN) lowest = Math.min(lowest, surface[i]);
 			}
+			// A map drawn under a roof before slices were kept still rises, as a slab
+			if (lowest == Integer.MAX_VALUE && underRoof) lowest = floor == UNKNOWN ? FLOOR - 1 : floor + (FLOOR - 1) * width();
 			if (lowest == Integer.MAX_VALUE) {
 				assemble();
 				return;
@@ -363,12 +416,7 @@ final class MapGround {
 
 		@Override
 		Object prepare(CompoundTag tag) {
-			SerializableChunkData data = SerializableChunkData.parse(level, level.palettedContainerFactory(), tag);
-			Map<Integer, LevelChunkSection> sections = new HashMap<>();
-			for (SerializableChunkData.SectionData section : data.sectionData()) {
-				if (section.chunkSection() != null) sections.put(section.y(), section.chunkSection());
-			}
-			return sections;
+			return sections(tag);
 		}
 
 		@Override
@@ -382,10 +430,7 @@ final class MapGround {
 		void fromDisk(int pixel, Object prepared) {
 			Map<Integer, LevelChunkSection> sections = (Map<Integer, LevelChunkSection>) prepared;
 			int x = columnX(pixel) & 15, z = columnZ(pixel) & 15;
-			stack(pixel, y -> {
-				LevelChunkSection section = sections.get(y >> 4);
-				return section == null ? Blocks.AIR.defaultBlockState() : section.getBlockState(x, y & 15, z);
-			}, y -> {
+			stack(pixel, y -> blockIn(sections, x, y, z), y -> {
 				LevelChunkSection section = sections.get(y >> 4);
 				return section == null ? null : section.getNoiseBiome(x >> 2, (y & 15) >> 2, z >> 2);
 			});
@@ -399,7 +444,8 @@ final class MapGround {
 			int top = surface[pixel];
 			if (top == UNKNOWN || top < floor) {
 				// Ground that could not be read sits on the floor rather than leaving a hole
-				columns[pixel] = new Column(new BlockState[] {Blocks.STONE.defaultBlockState()}, new int[] {FLOOR}, null);
+				BlockState slab = level.dimensionType().hasCeiling() ? Blocks.NETHERRACK.defaultBlockState() : Blocks.STONE.defaultBlockState();
+				columns[pixel] = new Column(new BlockState[] {slab}, new int[] {FLOOR}, null);
 				return;
 			}
 			int width = width();
@@ -424,16 +470,6 @@ final class MapGround {
 			Holder<Biome> biome = biomeAt.apply(top);
 			columns[pixel] = new Column(blocks.toArray(BlockState[]::new), counts.stream().mapToInt(Integer::intValue).toArray(),
 				biome == null ? null : biome.unwrapKey().map(ResourceKey::identifier).orElse(null));
-		}
-
-		/**
-		 * Whether a block stands in the relief: one the map would see, less the grass and ferns
-		 * that carpet the ground, which at this size are a speckle over every field rather than
-		 * anything the eye can pick out. Flowers and crops are kept; they read as colour.
-		 */
-		private boolean stands(BlockState block, BlockPos pos) {
-			if (block.isAir() || block.getMapColor(level, pos) == MapColor.NONE) return false;
-			return !block.canBeReplaced() || !block.getFluidState().isEmpty() || block.is(Blocks.SNOW);
 		}
 
 		@Override
