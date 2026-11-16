@@ -103,12 +103,12 @@ public class MapEquipHandler {
 	private static final int MOB_SIGHT_MOST = 50;
 
 	/** The nearest mobs on a player's map when Mob Sight last looked, nearest first. */
-	private record MobSightPicks(ResourceKey<Level> dimension, MapId mapId, List<LivingEntity> mobs) {}
+	private record MobSightPicks(ResourceKey<Level> dimension, MapId mapId, int centerX, int centerZ, List<LivingEntity> mobs) {}
 
 	private static final Map<UUID, MobSightPicks> mobSightPicks = new HashMap<>();
 
 	/** Everything on a map this tick, looked for once however many players carry it. */
-	private record MobSightScan(ResourceKey<Level> dimension, MapId mapId) {}
+	private record MobSightScan(ResourceKey<Level> dimension, MapId mapId, int centerX, int centerZ) {}
 
 	private static final Map<MobSightScan, List<LivingEntity>> mobSightScans = new HashMap<>();
 
@@ -351,13 +351,14 @@ public class MapEquipHandler {
 		ResourceKey<Level> dimension = player.level().dimension();
 		MobSightPicks last = mobSightPicks.get(player.getUUID());
 		if (last != null && last.mapId().equals(mapId) && last.dimension() == dimension
+				&& last.centerX() == mapData.centerX && last.centerZ() == mapData.centerZ
 				&& server.getTickCount() % MOB_SIGHT_EVERY_TICKS != 0) {
 			return last.mobs();
 		}
 
 		// Players are drawn from their own list; without this they arrive twice, once in team
 		// colour and once in whatever mobColor makes of them.
-		List<LivingEntity> onMap = mobSightScans.computeIfAbsent(new MobSightScan(dimension, mapId),
+		List<LivingEntity> onMap = mobSightScans.computeIfAbsent(new MobSightScan(dimension, mapId, mapData.centerX, mapData.centerZ),
 			key -> player.level().getEntitiesOfClass(LivingEntity.class, mobSightBox(mapData, scaleFactor),
 				e -> !(e instanceof Player)));
 
@@ -370,7 +371,7 @@ public class MapEquipHandler {
 		if (mobs.size() > MOB_SIGHT_MOST) {
 			mobs = List.copyOf(mobs.subList(0, MOB_SIGHT_MOST));
 		}
-		mobSightPicks.put(player.getUUID(), new MobSightPicks(dimension, mapId, mobs));
+		mobSightPicks.put(player.getUUID(), new MobSightPicks(dimension, mapId, mapData.centerX, mapData.centerZ, mobs));
 		return mobs;
 	}
 
