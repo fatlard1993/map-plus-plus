@@ -1,5 +1,7 @@
 package justfatlard.map_plus_plus;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import justfatlard.map_plus_plus.inventory.MapPlusPlusInventory;
 import justfatlard.pandorical.api.PandoricalApi;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -341,6 +343,21 @@ public final class BlockMagnet {
 	static Optional<Seeking> seeking(ItemStack compass) {
 		CustomData data = compass.get(DataComponents.CUSTOM_DATA);
 		if (data == null) return Optional.empty();
+		Optional<Seeking> known = readAs.getIfPresent(data);
+		if (known == null) {
+			known = read(data);
+			readAs.put(data, known);
+		}
+		return known;
+	}
+
+	/**
+	 * What each compass's data was read as, by the very component: the minimap asks every tick,
+	 * and the data only changes by being replaced.
+	 */
+	private static final Cache<CustomData, Optional<Seeking>> readAs = CacheBuilder.newBuilder().weakKeys().build();
+
+	private static Optional<Seeking> read(CustomData data) {
 		return data.copyTag().getCompound(KEY).flatMap(magnet -> {
 			List<Kind> kinds = new ArrayList<>();
 			magnet.getList("kinds").ifPresent(list -> {
@@ -349,7 +366,7 @@ public final class BlockMagnet {
 			if (kinds.isEmpty()) kind(magnet).ifPresent(kinds::add);
 			if (kinds.isEmpty()) return Optional.empty();
 			Block last = magnet.getString("last").flatMap(id -> BuiltInRegistries.BLOCK.getOptional(Identifier.parse(id))).orElse(null);
-			return Optional.of(new Seeking(kinds, last, magnet.getIntOr("running", 0)));
+			return Optional.of(new Seeking(List.copyOf(kinds), last, magnet.getIntOr("running", 0)));
 		});
 	}
 
@@ -359,7 +376,7 @@ public final class BlockMagnet {
 			tag.getLongArray("except").ifPresent(longs -> {
 				for (long packed : longs) except.add(BlockPos.of(packed));
 			});
-			return new Kind(block, except);
+			return new Kind(block, Set.copyOf(except));
 		});
 	}
 
