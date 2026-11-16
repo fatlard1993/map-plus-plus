@@ -12,6 +12,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,10 +28,12 @@ import net.minecraft.world.item.MapItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.minecraft.world.phys.AABB;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -93,6 +96,23 @@ public class MapEquipHandler {
 	private static final Map<UUID, String> lastMobData = new HashMap<>();
 
 	/**
+	 * How often Mob Sight looks for what is on the map. The dots still move every tick, read off
+	 * the mobs it found; this only decides how soon a newcomer appears and an old one is let go.
+	 */
+	private static final int MOB_SIGHT_EVERY_TICKS = 4;
+	private static final int MOB_SIGHT_MOST = 50;
+
+	/** The nearest mobs on a player's map when Mob Sight last looked, nearest first. */
+	private record MobSightPicks(ResourceKey<Level> dimension, MapId mapId, List<LivingEntity> mobs) {}
+
+	private static final Map<UUID, MobSightPicks> mobSightPicks = new HashMap<>();
+
+	/** Everything on a map this tick, looked for once however many players carry it. */
+	private record MobSightScan(ResourceKey<Level> dimension, MapId mapId) {}
+
+	private static final Map<MobSightScan, List<LivingEntity>> mobSightScans = new HashMap<>();
+
+	/**
 	 * Tracks last-sent state per player. compassTargetX/Z are NaN when no target is known.
 	 * selfDecX/Y are the player's current decoration bytes on the map (for client self-identification).
 	 */
@@ -127,6 +147,7 @@ public class MapEquipHandler {
 					PandoricalApi.hud().hide(player, OVERLAY_ID);
 					playerStates.remove(playerId);
 					lastMobData.remove(playerId);
+					mobSightPicks.remove(playerId);
 				}
 				hideNeedle(player);
 				hideRadar(player);
@@ -139,6 +160,7 @@ public class MapEquipHandler {
 					PandoricalApi.hud().hide(player, OVERLAY_ID);
 					playerStates.remove(playerId);
 					lastMobData.remove(playerId);
+					mobSightPicks.remove(playerId);
 				}
 				tickNeedleOnly(player, inv, hasCompass);
 				continue;
@@ -150,6 +172,7 @@ public class MapEquipHandler {
 					PandoricalApi.hud().hide(player, OVERLAY_ID);
 					playerStates.remove(playerId);
 					lastMobData.remove(playerId);
+					mobSightPicks.remove(playerId);
 				}
 				tickNeedleOnly(player, inv, hasCompass);
 				continue;
@@ -247,33 +270,15 @@ public class MapEquipHandler {
 
 				String currentMobs = "";
 				if (mobSightLevel > 0) {
-					int range = 64 * scaleFactor;
 					double cx = mapData.centerX;
 					double cz = mapData.centerZ;
-					AABB scanBox = new AABB(
-						cx - range, -64, cz - range,
-						cx + range, 384, cz + range
-					);
-
-					// Players are drawn from their own list above; without this they arrive twice,
-					// once in team colour and once in whatever mobColor makes of them.
-					List<LivingEntity> mobs = player.level().getEntitiesOfClass(
-						LivingEntity.class, scanBox,
-						e -> e != player && !(e instanceof net.minecraft.world.entity.player.Player)
-					);
-
-					// Sort by distance to player, take top 50
-					double px = player.getX(), pz = player.getZ();
-					mobs.sort(Comparator.comparingDouble(e -> {
-						double dx = e.getX() - px, dz = e.getZ() - pz;
-						return dx * dx + dz * dz;
-					}));
-					if (mobs.size() > 50) {
-						mobs = mobs.subList(0, 50);
-					}
+					AABB scanBox = mobSightBox(mapData, scaleFactor);
+					List<LivingEntity> mobs = mobSightPicks(server, player, mapId, mapData, scaleFactor);
 
 					StringBuilder sb = new StringBuilder();
 					for (LivingEntity mob : mobs) {
+						// Picked up to MOB_SIGHT_EVERY_TICKS ago: gone, or wandered off the map, since.
+						if (mob.isRemoved() || !mob.getBoundingBox().intersects(scanBox)) continue;
 						int rawDecX = (int) Math.round((mob.getX() - cx) / scaleFactor * 2);
 						int rawDecZ = (int) Math.round((mob.getZ() - cz) / scaleFactor * 2);
 						byte decX = (byte) Math.max(-127, Math.min(127, rawDecX));
@@ -284,6 +289,8 @@ public class MapEquipHandler {
 						sb.append(decX).append(',').append(decZ).append(',').append(color).append(',').append(entityTypeId);
 					}
 					currentMobs = sb.toString();
+				} else {
+					mobSightPicks.remove(playerId);
 				}
 
 				if (!currentPlayers.isEmpty()) {
@@ -327,6 +334,44 @@ public class MapEquipHandler {
 				playerStates.put(playerId, currentState);
 			}
 		}
+		mobSightScans.clear();
+	}
+
+	private static AABB mobSightBox(MapItemSavedData mapData, int scaleFactor) {
+		int range = 64 * scaleFactor;
+		return new AABB(
+			mapData.centerX - range, -64, mapData.centerZ - range,
+			mapData.centerX + range, 384, mapData.centerZ + range
+		);
+	}
+
+	/** The mobs a player's Mob Sight shows, picked again every {@link #MOB_SIGHT_EVERY_TICKS}. */
+	private static List<LivingEntity> mobSightPicks(MinecraftServer server, ServerPlayer player, MapId mapId,
+			MapItemSavedData mapData, int scaleFactor) {
+		ResourceKey<Level> dimension = player.level().dimension();
+		MobSightPicks last = mobSightPicks.get(player.getUUID());
+		if (last != null && last.mapId().equals(mapId) && last.dimension() == dimension
+				&& server.getTickCount() % MOB_SIGHT_EVERY_TICKS != 0) {
+			return last.mobs();
+		}
+
+		// Players are drawn from their own list; without this they arrive twice, once in team
+		// colour and once in whatever mobColor makes of them.
+		List<LivingEntity> onMap = mobSightScans.computeIfAbsent(new MobSightScan(dimension, mapId),
+			key -> player.level().getEntitiesOfClass(LivingEntity.class, mobSightBox(mapData, scaleFactor),
+				e -> !(e instanceof Player)));
+
+		double px = player.getX(), pz = player.getZ();
+		List<LivingEntity> mobs = new ArrayList<>(onMap);
+		mobs.sort(Comparator.comparingDouble(e -> {
+			double dx = e.getX() - px, dz = e.getZ() - pz;
+			return dx * dx + dz * dz;
+		}));
+		if (mobs.size() > MOB_SIGHT_MOST) {
+			mobs = List.copyOf(mobs.subList(0, MOB_SIGHT_MOST));
+		}
+		mobSightPicks.put(player.getUUID(), new MobSightPicks(dimension, mapId, mobs));
+		return mobs;
 	}
 
 	/**
@@ -408,6 +453,7 @@ public class MapEquipHandler {
 		UUID playerId = player.getUUID();
 		if (playerStates.remove(playerId) != null) {
 			lastMobData.remove(playerId);
+			mobSightPicks.remove(playerId);
 			PandoricalApi.hud().hide(player, OVERLAY_ID);
 		}
 		hideNeedle(player);
@@ -678,12 +724,22 @@ public class MapEquipHandler {
 			if (!person && !passive && (color == 0xFF33FF33 || color == 0xFFFFAA00)) continue;
 			if (count++ >= RADAR_MOST) break;
 			if (out.length() > 0) out.append(';');
-			out.append(e.getId()).append(',')
-				.append(String.format(java.util.Locale.ROOT, "%.1f,%.1f,%.1f", e.getX(), e.getY(), e.getZ()))
-				.append(',').append(color).append(',').append(sizeOf(e));
+			out.append(e.getId()).append(',');
+			appendTenths(out, e.getX());
+			out.append(',');
+			appendTenths(out, e.getY());
+			out.append(',');
+			appendTenths(out, e.getZ());
+			out.append(',').append(color).append(',').append(sizeOf(e));
 			if (person) out.append(",p");
 		}
 		return out.toString();
+	}
+
+	private static void appendTenths(StringBuilder out, double value) {
+		long tenths = Math.round(Math.abs(value) * 10.0);
+		if (value < 0 && tenths != 0) out.append('-');
+		out.append(tenths / 10).append('.').append(tenths % 10);
 	}
 
 	/**
@@ -762,6 +818,7 @@ public class MapEquipHandler {
 	public static void onPlayerDisconnect(UUID playerId) {
 		playerStates.remove(playerId);
 		lastMobData.remove(playerId);
+		mobSightPicks.remove(playerId);
 		needleBearing.remove(playerId);
 		radarShown.remove(playerId);
 	}
