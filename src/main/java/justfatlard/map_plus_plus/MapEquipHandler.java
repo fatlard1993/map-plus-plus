@@ -2,6 +2,7 @@ package justfatlard.map_plus_plus;
 
 import justfatlard.map_plus_plus.integration.FishingOverlay;
 import justfatlard.map_plus_plus.inventory.MapPlusPlusInventory;
+import justfatlard.pandorical.api.Capabilities;
 import justfatlard.pandorical.api.ComponentBuilder;
 import justfatlard.pandorical.api.ComponentType;
 import justfatlard.pandorical.api.HudBuilder;
@@ -36,8 +37,10 @@ import net.minecraft.world.phys.AABB;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -92,12 +95,22 @@ public class MapEquipHandler {
 	// Per-player last-known state
 	private static final Map<UUID, PlayerState> playerStates = new HashMap<>();
 
-	// Per-player last-sent mob list string (to avoid redundant updates)
-	private static final Map<UUID, String> lastMobData = new HashMap<>();
+	/** The dots last sent to each player, so the same list is never sent twice. */
+	private static final Map<UUID, SentDots> lastMobData = new HashMap<>();
+
+	/** A dot list as sent: {@code who} is every dot's key, or the entry itself for one that never moves. */
+	private record SentDots(String dots, Set<String> who) {}
 
 	/**
-	 * How often Mob Sight looks for what is on the map. The dots still move every tick, read off
-	 * the mobs it found; this only decides how soon a newcomer appears and an old one is let go.
+	 * How often a player whose client glides the dots is sent where they have got to, and how long
+	 * each glide takes, so a dot reaches one place as the next arrives and is drawn half a second
+	 * behind the mob. A dot arriving or leaving, or the map moving under them, goes at once.
+	 */
+	private static final int MOB_SIGHT_GLIDE_TICKS = 10;
+
+	/**
+	 * How often Mob Sight looks for what is on the map. The dots are read off the mobs it found
+	 * whenever they go out; this only decides how soon a newcomer appears and an old one is let go.
 	 */
 	private static final int MOB_SIGHT_EVERY_TICKS = 4;
 	private static final int MOB_SIGHT_MOST = 50;
@@ -257,61 +270,6 @@ public class MapEquipHandler {
 				}
 			}
 
-			// --- Mob Sight enchantment: scan nearby mobs and send as HUD prop ---
-			if (mapData != null) {
-				int mobSightLevel = mobSightLevel(player, compassStack);
-
-				int scaleFactor = 1 << mapData.scale;
-
-				// Other players, always. Mob Sight decides whether you can see the wildlife;
-				// knowing where the people you are playing with are standing is what a shared
-				// map is for, and it should not depend on an enchantment.
-				String currentPlayers = otherPlayerDots(player, mapData, scaleFactor);
-
-				String currentMobs = "";
-				if (mobSightLevel > 0) {
-					double cx = mapData.centerX;
-					double cz = mapData.centerZ;
-					AABB scanBox = mobSightBox(mapData, scaleFactor);
-					List<LivingEntity> mobs = mobSightPicks(server, player, mapId, mapData, scaleFactor);
-
-					StringBuilder sb = new StringBuilder();
-					for (LivingEntity mob : mobs) {
-						// Picked up to MOB_SIGHT_EVERY_TICKS ago: gone, or wandered off the map, since.
-						if (mob.isRemoved() || !mob.getBoundingBox().intersects(scanBox)) continue;
-						int rawDecX = (int) Math.round((mob.getX() - cx) / scaleFactor * 2);
-						int rawDecZ = (int) Math.round((mob.getZ() - cz) / scaleFactor * 2);
-						byte decX = (byte) Math.max(-127, Math.min(127, rawDecX));
-						byte decZ = (byte) Math.max(-127, Math.min(127, rawDecZ));
-						int color = mobColor(mob);
-						String entityTypeId = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString();
-						if (sb.length() > 0) sb.append(';');
-						sb.append(decX).append(',').append(decZ).append(',').append(color).append(',').append(entityTypeId);
-					}
-					currentMobs = sb.toString();
-				} else {
-					mobSightPicks.remove(playerId);
-				}
-
-				if (!currentPlayers.isEmpty()) {
-					currentMobs = currentMobs.isEmpty() ? currentPlayers : currentPlayers + ";" + currentMobs;
-				}
-				if (BlockMagnet.seeks(player, compassStack)) {
-					String blocks = blockDots(player, mapData, scaleFactor);
-					if (!blocks.isEmpty()) currentMobs = currentMobs.isEmpty() ? blocks : currentMobs + ";" + blocks;
-				}
-
-				String lastMobs = lastMobData.getOrDefault(playerId, "");
-				if (!currentMobs.equals(lastMobs)) {
-					lastMobData.put(playerId, currentMobs);
-					Map<String, String> mobProps = new java.util.HashMap<>();
-					mobProps.put("mobs", currentMobs);
-					PandoricalApi.hud().update(player, OVERLAY_ID, List.of(
-						new ComponentUpdate(MAP_COMPONENT_ID, mobProps)
-					));
-				}
-			}
-
 			if (lastState == null) {
 				// New: show HUD
 				showHud(player, mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY, compassOffMap);
@@ -332,6 +290,47 @@ public class MapEquipHandler {
 					new ComponentUpdate(MAP_COMPONENT_ID, buildProps(mapIdValue, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY, compassOffMap))
 				));
 				playerStates.put(playerId, currentState);
+			}
+
+			// --- Mob Sight enchantment: scan nearby mobs and send as HUD prop ---
+			// After the overlay is shown, so the first list has a map to land on.
+			if (mapData != null) {
+				int mobSightLevel = mobSightLevel(player, compassStack);
+
+				int scaleFactor = 1 << mapData.scale;
+				Dots dots = new Dots(frameTag(mapIdValue, mapData));
+
+				// Other players, always. Mob Sight decides whether you can see the wildlife;
+				// knowing where the people you are playing with are standing is what a shared
+				// map is for, and it should not depend on an enchantment.
+				otherPlayerDots(player, mapData, scaleFactor, dots);
+
+				if (mobSightLevel > 0) {
+					double cx = mapData.centerX;
+					double cz = mapData.centerZ;
+					AABB scanBox = mobSightBox(mapData, scaleFactor);
+					List<LivingEntity> mobs = mobSightPicks(server, player, mapId, mapData, scaleFactor);
+
+					for (LivingEntity mob : mobs) {
+						// Picked up to MOB_SIGHT_EVERY_TICKS ago: gone, or wandered off the map, since.
+						if (mob.isRemoved() || !mob.getBoundingBox().intersects(scanBox)) continue;
+						int rawDecX = (int) Math.round((mob.getX() - cx) / scaleFactor * 2);
+						int rawDecZ = (int) Math.round((mob.getZ() - cz) / scaleFactor * 2);
+						byte decX = (byte) Math.max(-127, Math.min(127, rawDecX));
+						byte decZ = (byte) Math.max(-127, Math.min(127, rawDecZ));
+						int color = mobColor(mob);
+						String entityTypeId = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString();
+						dots.add(decX, decZ, color, entityTypeId, mob);
+					}
+				} else {
+					mobSightPicks.remove(playerId);
+				}
+
+				if (BlockMagnet.seeks(player, compassStack)) {
+					blockDots(player, mapData, scaleFactor, dots);
+				}
+
+				sendDots(server, player, dots);
 			}
 		}
 		mobSightScans.clear();
@@ -410,12 +409,11 @@ public class MapEquipHandler {
 	 * the self position the server sends separately, so they can tell which dot is theirs by it
 	 * not being a dot.
 	 */
-	private static String otherPlayerDots(ServerPlayer self, MapItemSavedData mapData, int scaleFactor) {
+	private static void otherPlayerDots(ServerPlayer self, MapItemSavedData mapData, int scaleFactor, Dots out) {
 		double cx = mapData.centerX;
 		double cz = mapData.centerZ;
 		int range = 64 * scaleFactor;
 
-		StringBuilder sb = new StringBuilder();
 		for (ServerPlayer other : self.level().players()) {
 			// Hidden the way the locator bar hides them: a spectator is not there, and somebody
 			// who drank invisibility meant it.
@@ -427,12 +425,84 @@ public class MapEquipHandler {
 			byte decX = (byte) Math.max(-127, Math.min(127, rawX));
 			byte decZ = (byte) Math.max(-127, Math.min(127, rawZ));
 
-			if (sb.length() > 0) sb.append(';');
-			sb.append(decX).append(',').append(decZ).append(',')
-				.append(playerColor(other)).append(',')
-				.append("minecraft:player");
+			out.add(decX, decZ, playerColor(other), "minecraft:player", other);
 		}
-		return sb.toString();
+	}
+
+	/**
+	 * A map's dots as they go out: entries for the {@code mobs} prop and, in step with them, the
+	 * keys a client glides them by.
+	 */
+	private static final class Dots {
+		private final String frame;
+		private final StringBuilder entries = new StringBuilder();
+		private final StringBuilder keys = new StringBuilder();
+		private final Set<String> who = new HashSet<>();
+
+		Dots(String frame) {
+			this.frame = frame;
+		}
+
+		/** A dot that moves with {@code entity}, or that never moves when it is null. */
+		void add(int decX, int decZ, int color, String typeId, Entity entity) {
+			int start = entries.length();
+			if (start > 0) {
+				entries.append(';');
+				keys.append(',');
+				start++;
+			}
+			entries.append(decX).append(',').append(decZ).append(',').append(color).append(',').append(typeId);
+			if (entity == null) {
+				who.add(entries.substring(start));
+			} else {
+				String key = dotKey(frame, entity);
+				keys.append(key);
+				who.add(key);
+			}
+		}
+	}
+
+	/**
+	 * Which map, centred where, a dot is on: in its key, so when the map moves under it the dot is
+	 * drawn on the new one where it lands, not slid across from where it sat on the old.
+	 */
+	private static String frameTag(int mapId, MapItemSavedData map) {
+		return Integer.toString((31 * (31 * mapId + map.centerX) + map.centerZ) & 0xFFF, 36);
+	}
+
+	/** The key {@code entity}'s dot on this map is sent under. */
+	public static String dotKey(int mapId, MapItemSavedData map, Entity entity) {
+		return dotKey(frameTag(mapId, map), entity);
+	}
+
+	private static String dotKey(String frame, Entity entity) {
+		return frame + "." + entity.getId();
+	}
+
+	/**
+	 * Sent when they differ from what was. A client that glides them gets where they have got to
+	 * every {@link #MOB_SIGHT_GLIDE_TICKS}, and at once when one comes or goes; any other gets
+	 * every change, drawn where it lands.
+	 */
+	private static void sendDots(MinecraftServer server, ServerPlayer player, Dots dots) {
+		UUID playerId = player.getUUID();
+		String entries = dots.entries.toString();
+		SentDots last = lastMobData.get(playerId);
+		if (entries.equals(last == null ? "" : last.dots())) return;
+
+		boolean glides = PandoricalApi.hasCapability(player, Capabilities.DECLARED_MOTION);
+		if (glides && last != null && last.who().equals(dots.who)
+				&& Math.floorMod(server.getTickCount() + playerId.hashCode(), MOB_SIGHT_GLIDE_TICKS) != 0) {
+			return;
+		}
+
+		lastMobData.put(playerId, new SentDots(entries, dots.who));
+		Map<String, String> mobProps = new java.util.HashMap<>();
+		mobProps.put(ComponentType.PROP_MAP_DOTS, entries);
+		if (glides) mobProps.put(ComponentType.PROP_MAP_DOT_KEYS, dots.keys.toString());
+		PandoricalApi.hud().update(player, OVERLAY_ID, List.of(
+			new ComponentUpdate(MAP_COMPONENT_ID, mobProps)
+		));
 	}
 
 	/** What the player chose about how the map is drawn; the client draws whatever it is told. */
@@ -496,6 +566,9 @@ public class MapEquipHandler {
 
 		Map<String, String> props = buildProps(mapId, hasCompass, compassTx, compassTz, selfDecX, selfDecY, compassDecX, compassDecY, offMap);
 		props.putAll(displayProps(player));
+		if (PandoricalApi.hasCapability(player, Capabilities.DECLARED_MOTION)) {
+			props.put(ComponentType.PROP_INTERP_TICKS, String.valueOf(MOB_SIGHT_GLIDE_TICKS));
+		}
 		// Taller than it is wide, by one line. The map itself stays square - the component draws
 		// it at min(width, height) - and the extra height is the strip the coordinate readout sits
 		// in, under the frame instead of printed across the ground it is naming.
@@ -760,8 +833,7 @@ public class MapEquipHandler {
 	}
 
 	/** The same blocks as minimap dots, where they fall on the map. */
-	private static String blockDots(ServerPlayer player, MapItemSavedData map, int scaleFactor) {
-		StringBuilder out = new StringBuilder();
+	private static void blockDots(ServerPlayer player, MapItemSavedData map, int scaleFactor, Dots out) {
 		int half = 64 * scaleFactor;
 		for (BlockMagnet.Sighting seen : BlockMagnet.seenBy(player)) {
 			BlockPos block = seen.pos();
@@ -769,10 +841,8 @@ public class MapEquipHandler {
 			if (Math.abs(dx) > half || Math.abs(dz) > half) continue;
 			byte decX = (byte) Math.max(-127, Math.min(127, Math.round(dx / scaleFactor * 2)));
 			byte decZ = (byte) Math.max(-127, Math.min(127, Math.round(dz / scaleFactor * 2)));
-			if (out.length() > 0) out.append(';');
-			out.append(decX).append(',').append(decZ).append(',').append(BlockMagnet.colourOf(seen.kind())).append(',').append(Main.MOD_ID).append(":block");
+			out.add(decX, decZ, BlockMagnet.colourOf(seen.kind()), Main.MOD_ID + ":block", null);
 		}
-		return out.toString();
 	}
 
 	/** 1 to 3, by how much of the world the thing takes up: a chicken, a cow, a ravager. */

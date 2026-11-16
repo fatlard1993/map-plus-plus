@@ -2,6 +2,11 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version '1.17.17'
 }
 
+// Pandorical splits its environment source sets, so its client-only classes are not on the
+// classpath a plain project dependency provides; the tests read the minimap the client drew.
+evaluationDependsOn(':pandorical')
+def pandoricalClientClasses = project(':pandorical').sourceSets.client.output
+
 version = project.mod_version
 group = project.maven_group
 
@@ -63,6 +68,10 @@ fabricApi {
 		enableClientGameTests = true
 		eula = true
 	}
+}
+
+dependencies {
+	gametestCompileOnly(pandoricalClientClasses)
 }
 
 // Fabric tests these predicates against the loader's *normalized* game version,
