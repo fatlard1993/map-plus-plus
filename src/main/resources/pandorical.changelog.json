@@ -3,6 +3,12 @@
 		"Maps and compasses get slots of their own on the inventory screen, and a map sitting in its slot draws itself as a minimap in the corner while your hands stay free."
 	],
 	"versions": {
+		"1.0.8": [
+			"Nether maps show the ground at your height, and stand it up framed on the floor.",
+			"Mob sight looks for what is on the map five times a second, once per map however many carry it, and the dots still move every tick.",
+			"A slotted block magnet is read once, not every tick the minimap asks.",
+			"Mob sight looks again as soon as a scrolling map moves, so the new strip's mobs don't arrive late."
+		],
 		"1.0.7": [
 			"A demo to play in PvP Dimensions' onboarding."
 		],
