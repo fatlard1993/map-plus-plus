@@ -25,6 +25,7 @@ public final class MinimapPrefs {
 	private static SettingsApi.Setting<Boolean> coords;
 	private static SettingsApi.Setting<Boolean> hostile;
 	private static SettingsApi.Setting<Boolean> passive;
+	private static SettingsApi.Setting<String> radarWithMap;
 
 	/** Declare the settings, once, after the config file has been read for the defaults. */
 	public static void register() {
@@ -51,6 +52,12 @@ public final class MinimapPrefs {
 		hostile = group.toggle("minimapHostile", "Minimap shows hostile mobs", true)
 			.onChange(MinimapPrefs::changed);
 		passive = group.toggle("minimapPassive", "Minimap shows other mobs", true)
+			.onChange(MinimapPrefs::changed);
+		Map<String, String> placements = new LinkedHashMap<>();
+		placements.put("stacked", "Stacked");
+		placements.put("beside", "Side by side");
+		radarWithMap = group.choice("radarWithMap", "Radar with a map", placements, "stacked")
+			.describe("Where a Mob Sight or Block Magnet radar sits when a map is in the corner too")
 			.onChange(MinimapPrefs::changed);
 	}
 
@@ -85,5 +92,10 @@ public final class MinimapPrefs {
 
 	public static boolean passive(ServerPlayer player) {
 		return passive == null || passive.get(player);
+	}
+
+	/** The radar beside a minimap rather than stacked past it, along the screen edge. */
+	public static boolean radarBeside(ServerPlayer player) {
+		return radarWithMap != null && "beside".equals(radarWithMap.get(player));
 	}
 }

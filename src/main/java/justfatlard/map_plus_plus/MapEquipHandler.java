@@ -191,15 +191,19 @@ public class MapEquipHandler {
 				continue;
 			}
 
-			// A map is up, so the needle would be saying the same thing twice, and the map draws
-			// Mob Sight's dots itself.
+			// A map is up, so the needle would be saying the same thing twice. A radar is not: it
+			// says what is close and how far above or below, which the map cannot, so it moves out
+			// of the map's way and stays.
 			hideNeedle(player);
-			hideRadar(player);
+			ItemStack compassStack = inv.getCompassStack();
+			boolean radarMobs = mobSightLevel(player, compassStack) > 0;
+			boolean radarBlocks = BlockMagnet.isMagnet(player, compassStack);
+			if (radarMobs || radarBlocks) tickRadar(player, compassStack, radarMobs, radarBlocks, true);
+			else hideRadar(player);
 
 			int mapIdValue = mapId.id();
 
 			// Compute compass target (NaN if none)
-			ItemStack compassStack = inv.getCompassStack();
 			double[] target = hasCompass ? computeCompassTarget(player, compassStack) : null;
 			double compassTx = (target != null) ? target[0] : Double.NaN;
 			double compassTz = (target != null) ? target[1] : Double.NaN;
@@ -597,13 +601,14 @@ public class MapEquipHandler {
 			return;
 		}
 
-		// Mob Sight or a Block Magnet without a map: nothing to draw the dots on, so the compass
-		// draws its own ground. The needle's job goes with it, as the mark on the radar's rim.
+		// Mob Sight or a Block Magnet: the compass draws its own ground. The needle's job goes with
+		// it, as the mark on the radar's rim. A magnet that has taken nothing up yet draws it too,
+		// empty, so the compass shows what it is for before it is first used.
 		boolean mobSight = mobSightLevel(player, inv.getCompassStack()) > 0;
-		boolean magnet = BlockMagnet.seeks(player, inv.getCompassStack());
+		boolean magnet = BlockMagnet.isMagnet(player, inv.getCompassStack());
 		if (mobSight || magnet) {
 			hideNeedle(player);
-			tickRadar(player, inv.getCompassStack(), mobSight, magnet);
+			tickRadar(player, inv.getCompassStack(), mobSight, magnet, false);
 			return;
 		}
 		hideRadar(player);
@@ -688,7 +693,10 @@ public class MapEquipHandler {
 	private static final int RADAR_EVERY_TICKS = 4;
 	private static final int RADAR_MOST = 64;
 
-	private record RadarState(String blips, String label, String targetX, String targetZ) {}
+	/** Room between the minimap and a radar placed beside it. */
+	private static final int RADAR_GAP = 4;
+
+	private record RadarState(String blips, String label, String targetX, String targetZ, int offsetX, int offsetY) {}
 
 	private static final Map<UUID, RadarState> radarShown = new HashMap<>();
 
@@ -702,9 +710,26 @@ public class MapEquipHandler {
 			.orElse(0);
 	}
 
-	private static void tickRadar(ServerPlayer player, ItemStack compass, boolean mobSight, boolean magnet) {
+	/**
+	 * Show or update the radar, in the corner itself or, with a minimap there, next along from it:
+	 * stacked further from the corner than the map, or beside it, as the player chose. The anchor
+	 * takes the offset as a margin from whichever corner it is, so stacked reads as under a map at
+	 * the top of the screen and over one at the bottom.
+	 */
+	private static void tickRadar(ServerPlayer player, ItemStack compass, boolean mobSight, boolean magnet, boolean besideMap) {
 		UUID playerId = player.getUUID();
+		int padding = MinimapPrefs.padding(player);
+		int offsetX = padding, offsetY = padding;
+		if (besideMap) {
+			if (MinimapPrefs.radarBeside(player)) offsetX += MinimapPrefs.size(player) + RADAR_GAP;
+			else offsetY += MinimapPrefs.size(player) + READOUT_HEIGHT + RADAR_GAP;
+		}
 		RadarState last = radarShown.get(playerId);
+		// The map just came or went: move now, not up to a beat late on top of it
+		if (last != null && (last.offsetX() != offsetX || last.offsetY() != offsetY)) {
+			hideRadar(player);
+			last = null;
+		}
 		if (last != null && player.tickCount % RADAR_EVERY_TICKS != 0) return;
 
 		double[] target = computeCompassTarget(player, compass);
@@ -722,7 +747,7 @@ public class MapEquipHandler {
 			String blocks = blockBlips(player);
 			blips = blips.isEmpty() ? blocks : blocks.isEmpty() ? blips : blips + ";" + blocks;
 		}
-		RadarState now = new RadarState(blips, label, targetX, targetZ);
+		RadarState now = new RadarState(blips, label, targetX, targetZ, offsetX, offsetY);
 		if (now.equals(last)) return;
 		radarShown.put(playerId, now);
 
@@ -734,7 +759,7 @@ public class MapEquipHandler {
 		if (last == null) {
 			HudBuilder hud = new HudBuilder(RADAR_OVERLAY_ID)
 				.anchor(MinimapPrefs.anchor(player))
-				.offset(MinimapPrefs.padding(player), MinimapPrefs.padding(player))
+				.offset(offsetX, offsetY)
 				.component(new ComponentBuilder(RADAR_COMPONENT_ID, ComponentType.RADAR)
 					.bounds(0, 0, RADAR_SIZE, RADAR_SIZE)
 					.prop(ComponentType.PROP_RADAR_RANGE, String.valueOf(RADAR_RANGE))
