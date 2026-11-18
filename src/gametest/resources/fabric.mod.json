@@ -10,6 +10,7 @@
 		"fabric-client-gametest": [
 			"justfatlard.map_plus_plus.gametest.SlottedMapMarkers",
 			"justfatlard.map_plus_plus.gametest.MobSightGlide",
+			"justfatlard.map_plus_plus.gametest.RadarBesideMap",
 			"justfatlard.map_plus_plus.gametest.NetherSlice",
 			"justfatlard.map_plus_plus.gametest.Showcase"
 		]

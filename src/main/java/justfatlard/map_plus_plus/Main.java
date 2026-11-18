@@ -7,7 +7,9 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.item.v1.DefaultItemComponentEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
@@ -15,6 +17,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CompassItem;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantable;
 import net.minecraft.world.item.enchantment.Enchantment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,9 +46,16 @@ public class Main implements ModInitializer {
 	/** Namespace used when registering our slot group with Pandorical. */
 	public static final Identifier SLOTS_NAMESPACE = Identifier.fromNamespaceAndPath(MOD_ID, "slots");
 
+	/** A book's: the table still reaches Block Magnet I at its top row, and II and III take an anvil. */
+	private static final int ENCHANTABILITY = 1;
+
 	@Override
 	public void onInitialize() {
 		MapPlusPlusConfig.load();
+		// The table only offers enchantments to an item that is enchantable at all, which a compass and a map are not.
+		DefaultItemComponentEvents.MODIFY.register(context -> context.modify(
+			item -> item instanceof CompassItem || item == Items.RECOVERY_COMPASS || item == Items.FILLED_MAP,
+			(builder, item) -> builder.set(DataComponents.ENCHANTABLE, new Enchantable(ENCHANTABILITY))));
 		if (justfatlard.pandorical.api.PandoricalApi.isAvailable()) MinimapPrefs.register();
 
 		// Register the map and compass slots with Pandorical.
