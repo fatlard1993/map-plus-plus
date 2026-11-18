@@ -14,7 +14,7 @@ Here a map and a compass each get **a slot of their own** on the inventory scree
 
 ## The Slots
 
-Two extra squares on the vanilla inventory screen: one that takes a map, one that takes a compass — regular, lodestone, or recovery. Any map with something drawn on it goes in the map slot, the explorer maps included; a blank map does not, since there is nothing on it to show. They persist across sessions and across deaths, and they are ordinary inventory as far as everything else is concerned.
+Two extra squares on the vanilla inventory screen: one that takes a map, one that takes a compass — regular, lodestone, or recovery. Any map with something drawn on it goes in the map slot, the explorer maps included; a blank map does not, since there is nothing on it to show. Shift-clicking a map or compass in your inventory puts one in its slot when the slot is empty, the way armour goes on, and shift-clicking it there takes it back out. They persist across sessions and across deaths, and they are ordinary inventory as far as everything else is concerned.
 
 ## The Minimap
 
