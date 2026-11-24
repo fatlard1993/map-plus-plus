@@ -422,7 +422,7 @@ public class MapEquipHandler {
 			// Hidden the way the locator bar hides them: a spectator is not there, and somebody
 			// who drank invisibility meant it. And anyone who asked not to be shown on maps.
 			if (other == self || other.isSpectator() || other.isInvisible()) continue;
-			if (!justfatlard.pandorical.api.PandoricalApi.maps().shown(other.level().getServer(), other.getUUID())) continue;
+			if (!shownOnMaps(other)) continue;
 			if (Math.abs(other.getX() - cx) > range || Math.abs(other.getZ() - cz) > range) continue;
 
 			int rawX = (int) Math.round((other.getX() - cx) / scaleFactor * 2);
@@ -918,5 +918,14 @@ public class MapEquipHandler {
 		mobSightPicks.remove(playerId);
 		needleBearing.remove(playerId);
 		radarShown.remove(playerId);
+	}
+
+	/** A Pandorical from before the choice has nobody asking to be left off. */
+	private static boolean shownOnMaps(ServerPlayer player) {
+		try {
+			return justfatlard.pandorical.api.PandoricalApi.maps().shown(player.level().getServer(), player.getUUID());
+		} catch (LinkageError older) {
+			return true;
+		}
 	}
 }
