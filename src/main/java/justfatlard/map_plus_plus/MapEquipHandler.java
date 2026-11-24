@@ -420,8 +420,9 @@ public class MapEquipHandler {
 
 		for (ServerPlayer other : self.level().players()) {
 			// Hidden the way the locator bar hides them: a spectator is not there, and somebody
-			// who drank invisibility meant it.
+			// who drank invisibility meant it. And anyone who asked not to be shown on maps.
 			if (other == self || other.isSpectator() || other.isInvisible()) continue;
+			if (!justfatlard.pandorical.api.PandoricalApi.maps().shown(other.level().getServer(), other.getUUID())) continue;
 			if (Math.abs(other.getX() - cx) > range || Math.abs(other.getZ() - cz) > range) continue;
 
 			int rawX = (int) Math.round((other.getX() - cx) / scaleFactor * 2);

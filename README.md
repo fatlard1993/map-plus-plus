@@ -22,7 +22,7 @@ A map in the slot is drawn in a screen corner, updating as you move.
 
 **Your own marker is vanilla's.** The same white arrow the game draws on a held map, rotated to your heading, so there is nothing new to learn about reading it.
 
-**Other players are diamonds.** Anyone standing inside the area the map covers shows as a diamond in the colour their dot has on the locator bar, whether or not they carry the map and whether or not your compass has Mob Sight. Spectators and invisible players are left off, the way the locator bar leaves them off.
+**Other players are diamonds.** Anyone standing inside the area the map covers shows as a diamond in the colour their dot has on the locator bar, whether or not they carry the map and whether or not your compass has Mob Sight. Spectators and invisible players are left off, the way the locator bar leaves them off. So is anyone who turned off "Show me on maps" on Pandorical's page of their settings.
 
 **A compass adds a bearing.** With one in the compass slot, the minimap gains a marker for whatever the compass is pointed at: a lodestone, your last death for a recovery compass, world spawn for a plain one. If that target is off the edge of the map it is clamped to the correct edge and turned outward, which is how vanilla draws an off-map decoration, so the direction is still readable when the distance is not.
 
