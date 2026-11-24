@@ -117,6 +117,10 @@ Every minimap setting is the player's own, on the Map++ page of Pandorical's mod
 | `minimap_size` | `100` | Size in pixels |
 | `minimap_padding` | `5` | Padding from the screen edge in pixels |
 
+## Works with other mods
+
+Xaero's Minimap draws a minimap too, so with it installed you would have two in the corner; its manifest lists it as a conflict, so the loader says so at startup.
+
 ## Development
 
 Installing and the map of the source are in [DEVELOPMENT.md](DEVELOPMENT.md).
